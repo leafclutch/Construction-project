@@ -48,21 +48,38 @@ Scope = the CEO's prototype (7 pages + login with Admin / Site Staff), made real
 - [x] Responsive pass 320/375/768/1024/1366: no horizontal scroll; phone ledger rows drop the amount under long text; money never splits mid-number; long project codes wrap
 - [x] Dark mode checked at 320
 - [x] a11y pass: skip-to-content link; keyboard walk (dialog takes focus, Esc closes, focus returns to its button); every control on all 9 app pages has an accessible name; phone tap targets ≥ 44 px (Site Hub board buttons and onboarding tabs raised from 40 px)
-- [x] Empty states seen (drawings, BOQ search), skeletons on every list, ErrorState with retry on every page
+- [x] Empty states seen (drawings, BOQ search), skeletons on every list, ErrorState with retry on every page. Error path tested with a faked 503 on labour: after the Supabase client's own retries (~10 s) a friendly error shows (no raw server text), and "Try again" loads the data once the server is back
 - [x] Column-level grants: no forged created_by, no moving rows between firms, no email spoofing (migration 2, tested)
 - [x] Mobile drawer is a native modal dialog (Esc, focus trap); confirm dialogs mount only when open
 - [x] Production steps written: docs/DEPLOY.md
 - [ ] Production deploy — needs user (company Supabase account + hosting choice)
 
+### Phase 6 — Production readiness
+- [x] My profile page (`/profile`, linked from the sidebar): edit name, change password (with confirm field), list firms with role + switch. Tested: name save shows in Team, mismatch message; real password change left to the user
+- [x] Edit saved records (owner/admin only, pencil next to delete) on Labour, Materials, VAT bills, Steel, BOQ. Photos stay as they are when editing. Tested each in the browser: prefilled form, DB recalculates wage/VAT/weight/amount, totals update; values restored after
+- [x] Edit project, update billing, delete project tested in the browser. Delete on a throwaway project removed its rows and its stored file
+- [x] Fixed: "Delete this project" did nothing (the edit dialog's close event cancelled the confirm dialog). Fix is in the shared Modal
+- [x] App name and role labels in one place (`src/lib/brand.ts`), so the rebrand is one line (+ `<title>` in index.html)
+- [x] DB review: RLS on all 11 tables; security-definer functions pin search_path; `private` schema not usable by anon; every record table has a project_id-leading index (lists + cascade deletes). `created_by`/`accepted_by` FKs left unindexed on purpose (only hit when a user account is deleted, which the app doesn't offer)
+- [x] Migration 3 (`touch_updated_at` pins search_path, Supabase advisor warning) applied to dev with the user's OK; trigger checked, `pnpm test:db` 12/12
+- [ ] Brand name — waiting on the user/CEO choice
+- [ ] Sign up → confirm email → onboarding (create firm / join with code) through the real screens — needs the user to sign up a fresh test account, and Supabase Auth redirect URLs set
+- [ ] SMTP for auth emails (Supabase's built-in sender only allows a few emails per hour — not enough for the demo)
+- [ ] Production Supabase project + hosting (see docs/DEPLOY.md)
+
 ## Open decisions (user / CEO)
 - Money additions inside existing pages (material amount + paid/due, labour advance, client payments on Site Hub). Not built until approved.
 - BS (Bikram Sambat) dates in the UI.
-- Supabase Auth "Confirm email" setting and SMTP for the dev/prod projects.
+- Supabase Auth "Confirm email" setting and SMTP provider for the dev/prod projects.
+- Brand name (replaces "Nirman Sathi").
 
 ## Blockers
 - Supabase Auth → URL Configuration: add `http://localhost:5173/**` to Redirect URLs (email confirm + password reset links), and set Site URL.
 
 ## Test log
+- 2026-11-26 (run 9): DB review (indexes, RLS, function security); migration 3 applied to dev (user OK).
+- 2026-11-26 (run 8): profile page, record editing on 5 pages, project edit/billing/delete tested in the browser; Modal bug fixed; `pnpm test` 7/7, `pnpm test:db` 12/12, `tsc -b` clean, build OK.
+- 2026-11-26 (run 7): error + retry state tested with a faked 503 (tab only).
 - 2026-11-26 (run 6): print layouts checked via simulated print CSS (see Phase 5); `tsc -b` clean.
 - 2026-11-26 (run 5): site staff role tested with a real staff login (see Phase 2); test row removed.
 - 2026-11-26 (run 4): a11y pass (see Phase 5); `pnpm test` 4/4, `tsc -b` clean, lint clean.
