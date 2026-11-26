@@ -2,19 +2,20 @@ import { FileText, Plus } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { Ledger } from '../../components/Ledger'
 import { Modal } from '../../components/Modal'
-import { DeleteRowButton, FileLink, FilePicker, LedgerSkeleton, PrintButton, PrintHeader, StatStrip } from '../../components/records'
+import { DeleteRowButton, EditRowButton, FileLink, FilePicker, LedgerSkeleton, PrintButton, PrintHeader, StatStrip } from '../../components/records'
 import { useToast } from '../../components/toast'
 import { Button, EmptyState, ErrorState, Field, FormError, Input, PageHeader, Panel } from '../../components/ui'
 import { MAX_RECEIPT_BYTES } from '../../lib/files'
 import { calc, formatDate, formatNPR, formatNumber, todayISO } from '../../lib/format'
 import { useAsyncData } from '../../lib/useAsyncData'
 import { useProject } from '../../projects/ProjectLayout'
-import { addBill, deleteBill, listBills } from './api'
+import { addBill, deleteBill, listBills, updateBill, type VatBill, type VatBillInput } from './api'
 
 export function BillsPage() {
   const { project } = useProject()
   const { data, error, reload } = useAsyncData(() => listBills(project.id), [project.id])
   const [adding, setAdding] = useState(false)
+  const [editing, setEditing] = useState<VatBill | null>(null)
   const toast = useToast()
 
   const sum = (k: 'taxable_amount' | 'vat_amount' | 'gross_amount') => data?.reduce((s, r) => s + Number(r[k]), 0) ?? 0
@@ -101,13 +102,16 @@ export function BillsPage() {
                 ),
               })}
               actions={(r) => (
-                <DeleteRowButton
-                  what={`bill ${r.bill_no}`}
-                  onDelete={async () => {
-                    await deleteBill(r)
-                    reload()
-                  }}
-                />
+                <>
+                  <EditRowButton what={`bill ${r.bill_no}`} onClick={() => setEditing(r)} />
+                  <DeleteRowButton
+                    what={`bill ${r.bill_no}`}
+                    onDelete={async () => {
+                      await deleteBill(r)
+                      reload()
+                    }}
+                  />
+                </>
               )}
               footer={{
                 label: 'Total',
@@ -128,13 +132,28 @@ export function BillsPage() {
           }}
         />
       </Modal>
+
+      <Modal open={Boolean(editing)} title="Edit VAT bill" onClose={() => setEditing(null)}>
+        {editing && (
+          <BillForm
+            key={editing.id}
+            initial={editing}
+            onSave={async (input) => {
+              await updateBill(editing.id, input)
+              reload()
+              setEditing(null)
+              toast('Changes saved')
+            }}
+          />
+        )}
+      </Modal>
     </>
   )
 }
 
-function BillForm({ onSave }: { onSave: (input: Parameters<typeof addBill>[2], file: File | null) => Promise<void> }) {
-  const [taxable, setTaxable] = useState('')
-  const [vatIncluded, setVatIncluded] = useState(true)
+function BillForm({ initial, onSave }: { initial?: VatBill; onSave: (input: VatBillInput, file: File | null) => Promise<void> }) {
+  const [taxable, setTaxable] = useState(initial ? String(initial.taxable_amount) : '')
+  const [vatIncluded, setVatIncluded] = useState(initial?.vat_included ?? true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>(null)
 
@@ -168,12 +187,12 @@ function BillForm({ onSave }: { onSave: (input: Parameters<typeof addBill>[2], f
 
   return (
     <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
-      <Field label="Bill date">{(id) => <Input id={id} name="bill_date" type="date" defaultValue={todayISO()} max={todayISO()} required />}</Field>
-      <Field label="Bill / invoice no.">{(id) => <Input id={id} name="bill_no" required maxLength={60} placeholder="VAT-2083-0145" />}</Field>
-      <Field label="Supplier name">{(id) => <Input id={id} name="supplier_name" required maxLength={200} placeholder="Mithila Hardware" />}</Field>
+      <Field label="Bill date">{(id) => <Input id={id} name="bill_date" type="date" defaultValue={initial?.bill_date ?? todayISO()} max={todayISO()} required />}</Field>
+      <Field label="Bill / invoice no.">{(id) => <Input id={id} name="bill_no" defaultValue={initial?.bill_no} required maxLength={60} placeholder="VAT-2083-0145" />}</Field>
+      <Field label="Supplier name">{(id) => <Input id={id} name="supplier_name" defaultValue={initial?.supplier_name} required maxLength={200} placeholder="Mithila Hardware" />}</Field>
       <Field label="Supplier PAN / VAT no." hint="9 digits, printed on the bill.">
         {(id) => (
-          <Input id={id} name="supplier_pan" required inputMode="numeric" pattern="[0-9]{9}" maxLength={9} title="9 digits" autoComplete="off" />
+          <Input id={id} name="supplier_pan" defaultValue={initial?.supplier_pan} required inputMode="numeric" pattern="[0-9]{9}" maxLength={9} title="9 digits" autoComplete="off" />
         )}
       </Field>
       <Field label="Taxable amount (Rs.)">
@@ -193,13 +212,15 @@ function BillForm({ onSave }: { onSave: (input: Parameters<typeof addBill>[2], f
           <dd className="figure text-lg">{formatNPR(gross)}</dd>
         </div>
       </dl>
-      <Field label="Bill photo or PDF" className="sm:col-span-2" hint="Optional, up to 10 MB.">
-        {(id) => <FilePicker id={id} name="bill_file" accept="image/*,application/pdf" maxBytes={MAX_RECEIPT_BYTES} label="Take photo or choose file" />}
-      </Field>
+      {!initial && (
+        <Field label="Bill photo or PDF" className="sm:col-span-2" hint="Optional, up to 10 MB.">
+          {(id) => <FilePicker id={id} name="bill_file" accept="image/*,application/pdf" maxBytes={MAX_RECEIPT_BYTES} label="Take photo or choose file" />}
+        </Field>
+      )}
       <div className="flex flex-col gap-3 sm:col-span-2">
         <FormError error={error} messages={{ '23505': 'This bill number from this supplier is already recorded.' }} />
         <Button type="submit" busy={busy} className="sm:self-end">
-          Save bill
+          {initial ? 'Save changes' : 'Save bill'}
         </Button>
       </div>
     </form>

@@ -1,7 +1,7 @@
 import { fetchAll } from '../../lib/fetchAll'
 import { removeFile, uploadFile } from '../../lib/files'
 import { supabase, type Tables } from '../../lib/supabase'
-import { unwrap } from '../../lib/useAsyncData'
+import { unwrap, updateOne } from '../../lib/useAsyncData'
 
 export type MaterialEntry = Tables<'material_entries'>
 export type MaterialInput = Pick<MaterialEntry, 'entry_date' | 'material' | 'quantity' | 'unit' | 'supplier'>
@@ -27,6 +27,10 @@ export async function addMaterial(orgId: string, projectId: string, input: Mater
     throw e
   }
 }
+
+/** Edits the text and number fields; the challan photo stays as it is. */
+export const updateMaterial = (id: string, input: MaterialInput) =>
+  updateOne(supabase.from('material_entries').update(input).eq('id', id).select('id'))
 
 export async function deleteMaterial(row: MaterialEntry) {
   await unwrap(supabase.from('material_entries').delete().eq('id', row.id))

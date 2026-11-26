@@ -3,14 +3,14 @@ import { useState, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router'
 import { Ledger } from '../../components/Ledger'
 import { Modal } from '../../components/Modal'
-import { DeleteRowButton, FileLink, FilePicker, LedgerSkeleton, PrintButton, PrintHeader, StatStrip } from '../../components/records'
+import { DeleteRowButton, EditRowButton, FileLink, FilePicker, LedgerSkeleton, PrintButton, PrintHeader, StatStrip } from '../../components/records'
 import { useToast } from '../../components/toast'
 import { Button, EmptyState, ErrorState, Field, FormError, Input, PageHeader, Panel, Select } from '../../components/ui'
 import { MAX_RECEIPT_BYTES } from '../../lib/files'
 import { formatDate, formatNumber, todayISO } from '../../lib/format'
 import { useAsyncData } from '../../lib/useAsyncData'
 import { useProject } from '../../projects/ProjectLayout'
-import { addMaterial, deleteMaterial, listMaterials, MATERIALS, UNITS } from './api'
+import { addMaterial, deleteMaterial, listMaterials, MATERIALS, UNITS, updateMaterial, type MaterialEntry, type MaterialInput } from './api'
 
 export function MaterialsPage() {
   const { project } = useProject()
@@ -18,6 +18,7 @@ export function MaterialsPage() {
   const material = params.get('material') ?? ''
   const { data, error, reload } = useAsyncData(() => listMaterials(project.id, material || undefined), [project.id, material])
   const [adding, setAdding] = useState(false)
+  const [editing, setEditing] = useState<MaterialEntry | null>(null)
   const toast = useToast()
 
   const withChallan = data?.filter((r) => r.challan_path).length ?? 0
@@ -101,13 +102,16 @@ export function MaterialsPage() {
                 side: `${formatNumber(r.quantity)} ${r.unit}`,
               })}
               actions={(r) => (
-                <DeleteRowButton
-                  what={`${r.material} delivery of ${formatDate(r.entry_date)}`}
-                  onDelete={async () => {
-                    await deleteMaterial(r)
-                    reload()
-                  }}
-                />
+                <>
+                  <EditRowButton what={`${r.material} delivery of ${formatDate(r.entry_date)}`} onClick={() => setEditing(r)} />
+                  <DeleteRowButton
+                    what={`${r.material} delivery of ${formatDate(r.entry_date)}`}
+                    onDelete={async () => {
+                      await deleteMaterial(r)
+                      reload()
+                    }}
+                  />
+                </>
               )}
             />
           )}
@@ -124,11 +128,26 @@ export function MaterialsPage() {
           }}
         />
       </Modal>
+
+      <Modal open={Boolean(editing)} title="Edit delivery" onClose={() => setEditing(null)}>
+        {editing && (
+          <MaterialForm
+            key={editing.id}
+            initial={editing}
+            onSave={async (input) => {
+              await updateMaterial(editing.id, input)
+              reload()
+              setEditing(null)
+              toast('Changes saved')
+            }}
+          />
+        )}
+      </Modal>
     </>
   )
 }
 
-function MaterialForm({ onSave }: { onSave: (input: Parameters<typeof addMaterial>[2], file: File | null) => Promise<void> }) {
+function MaterialForm({ initial, onSave }: { initial?: MaterialEntry; onSave: (input: MaterialInput, file: File | null) => Promise<void> }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>(null)
 
@@ -158,21 +177,21 @@ function MaterialForm({ onSave }: { onSave: (input: Parameters<typeof addMateria
 
   return (
     <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
-      <Field label="Date">{(id) => <Input id={id} name="entry_date" type="date" defaultValue={todayISO()} max={todayISO()} required />}</Field>
+      <Field label="Date">{(id) => <Input id={id} name="entry_date" type="date" defaultValue={initial?.entry_date ?? todayISO()} max={todayISO()} required />}</Field>
       <Field label="Material">
         {(id) => (
-          <Select id={id} name="material" required>
+          <Select id={id} name="material" defaultValue={initial?.material} required>
             {MATERIALS.map((m) => (
               <option key={m}>{m}</option>
             ))}
           </Select>
         )}
       </Field>
-      <Field label="Quantity">{(id) => <Input id={id} name="quantity" type="number" inputMode="decimal" min="0.001" step="0.001" required />}</Field>
+      <Field label="Quantity">{(id) => <Input id={id} name="quantity" type="number" inputMode="decimal" min="0.001" step="0.001" defaultValue={initial?.quantity} required />}</Field>
       <Field label="Unit">
         {(id) => (
           <>
-            <Input id={id} name="unit" list="material-units" required maxLength={30} placeholder="Bags" />
+            <Input id={id} name="unit" list="material-units" defaultValue={initial?.unit} required maxLength={30} placeholder="Bags" />
             <datalist id="material-units">
               {UNITS.map((u) => (
                 <option key={u} value={u} />
@@ -182,15 +201,17 @@ function MaterialForm({ onSave }: { onSave: (input: Parameters<typeof addMateria
         )}
       </Field>
       <Field label="Supplier / remarks" className="sm:col-span-2" hint="Optional, e.g. Shivam Hardware, challan #108.">
-        {(id) => <Input id={id} name="supplier" maxLength={300} />}
+        {(id) => <Input id={id} name="supplier" defaultValue={initial?.supplier ?? undefined} maxLength={300} />}
       </Field>
-      <Field label="Challan photo" className="sm:col-span-2" hint="Optional. Photo or PDF up to 10 MB.">
-        {(id) => <FilePicker id={id} name="challan" accept="image/*,application/pdf" maxBytes={MAX_RECEIPT_BYTES} label="Take photo or choose file" />}
-      </Field>
+      {!initial && (
+        <Field label="Challan photo" className="sm:col-span-2" hint="Optional. Photo or PDF up to 10 MB.">
+          {(id) => <FilePicker id={id} name="challan" accept="image/*,application/pdf" maxBytes={MAX_RECEIPT_BYTES} label="Take photo or choose file" />}
+        </Field>
+      )}
       <div className="flex flex-col gap-3 sm:col-span-2">
         <FormError error={error} />
         <Button type="submit" busy={busy} className="sm:self-end">
-          Save delivery
+          {initial ? 'Save changes' : 'Save delivery'}
         </Button>
       </div>
     </form>

@@ -42,3 +42,9 @@ export async function unwrap<R extends { data: unknown; error: unknown }>(promis
   if (error) throw error
   return data as NonNullable<R['data']>
 }
+
+/** For `.update(...).select('id')`: RLS skips rows silently, so zero rows updated means "not allowed". */
+export async function updateOne<R extends { data: unknown[] | null; error: unknown }>(promise: PromiseLike<R>) {
+  const rows = await unwrap(promise)
+  if (rows.length === 0) throw { code: '42501' }
+}

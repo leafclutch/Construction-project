@@ -1,13 +1,14 @@
 import { Plus, Ruler } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { Ledger } from '../../components/Ledger'
-import { DeleteRowButton, LedgerSkeleton, PrintButton, PrintHeader } from '../../components/records'
+import { Modal } from '../../components/Modal'
+import { DeleteRowButton, EditRowButton, LedgerSkeleton, PrintButton, PrintHeader } from '../../components/records'
 import { useToast } from '../../components/toast'
-import { Button, EmptyState, ErrorState, Field, FormError, Input, PageHeader, Panel, Select } from '../../components/ui'
+import { Button, cx, EmptyState, ErrorState, Field, FormError, Input, PageHeader, Panel, Select } from '../../components/ui'
 import { fetchAll } from '../../lib/fetchAll'
 import { calc, formatNumber } from '../../lib/format'
 import { supabase, type Tables } from '../../lib/supabase'
-import { unwrap, useAsyncData } from '../../lib/useAsyncData'
+import { unwrap, updateOne, useAsyncData } from '../../lib/useAsyncData'
 import { useProject } from '../../projects/ProjectLayout'
 
 type BbsItem = Tables<'bbs_items'>
@@ -20,6 +21,7 @@ const listBbs = (projectId: string) =>
 export function SteelPage() {
   const { project } = useProject()
   const { data, error, reload } = useAsyncData(() => listBbs(project.id), [project.id])
+  const [editing, setEditing] = useState<BbsItem | null>(null)
   const toast = useToast()
 
   const total = data?.reduce((s, r) => s + Number(r.total_weight_kg), 0) ?? 0
@@ -95,30 +97,50 @@ export function SteelPage() {
                 side: `${formatNumber(r.total_weight_kg)} kg`,
               })}
               actions={(r) => (
-                <DeleteRowButton
-                  what={r.member}
-                  onDelete={async () => {
-                    await unwrap(supabase.from('bbs_items').delete().eq('id', r.id))
-                    reload()
-                  }}
-                />
+                <>
+                  <EditRowButton what={r.member} onClick={() => setEditing(r)} />
+                  <DeleteRowButton
+                    what={r.member}
+                    onDelete={async () => {
+                      await unwrap(supabase.from('bbs_items').delete().eq('id', r.id))
+                      reload()
+                    }}
+                  />
+                </>
               )}
               footer={{ label: 'Total', cells: { 5: `${formatNumber(total.toFixed(2))} kg` } }}
             />
           )}
         </Panel>
       )}
+
+      <Modal open={Boolean(editing)} title="Edit steel row" onClose={() => setEditing(null)}>
+        {editing && (
+          <SteelForm
+            key={editing.id}
+            initial={editing}
+            onSave={async (input) => {
+              await updateOne(supabase.from('bbs_items').update(input).eq('id', editing.id).select('id'))
+              reload()
+              setEditing(null)
+              toast('Changes saved')
+            }}
+          />
+        )}
+      </Modal>
     </>
   )
 }
 
 type SteelInput = Pick<BbsItem, 'member' | 'bar_dia_mm' | 'bar_count' | 'cut_length_m'>
 
-function SteelForm({ onSave }: { onSave: (input: SteelInput) => Promise<void> }) {
-  const [member, setMember] = useState('')
-  const [dia, setDia] = useState(12)
-  const [bars, setBars] = useState('')
-  const [length, setLength] = useState('')
+function SteelForm({ initial, onSave }: { initial?: BbsItem; onSave: (input: SteelInput) => Promise<void> }) {
+  const [member, setMember] = useState(initial?.member ?? '')
+  const [dia, setDia] = useState(initial?.bar_dia_mm ?? 12)
+  const [bars, setBars] = useState(initial ? String(initial.bar_count) : '')
+  const [length, setLength] = useState(initial ? String(initial.cut_length_m) : '')
+  // Adding is an inline row on wide screens; editing happens in a narrow dialog.
+  const wide = !initial
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>(null)
 
@@ -129,8 +151,10 @@ function SteelForm({ onSave }: { onSave: (input: SteelInput) => Promise<void> })
     try {
       await onSave({ member: member.trim(), bar_dia_mm: dia, bar_count: Number(bars), cut_length_m: Number(length) })
       // Keep member and diameter: the next row is usually the same member.
-      setBars('')
-      setLength('')
+      if (wide) {
+        setBars('')
+        setLength('')
+      }
     } catch (err) {
       setError(err)
     } finally {
@@ -139,7 +163,7 @@ function SteelForm({ onSave }: { onSave: (input: SteelInput) => Promise<void> })
   }
 
   return (
-    <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_1fr_auto] lg:items-end">
+    <form onSubmit={submit} className={cx('grid gap-4 sm:grid-cols-2', wide && 'lg:grid-cols-[2fr_1fr_1fr_1fr_auto] lg:items-end')}>
       <Field label="Member / location">{(id) => <Input id={id} value={member} onChange={(e) => setMember(e.target.value)} required maxLength={200} placeholder="F1 footing bottom mesh" />}</Field>
       <Field label="Bar dia">
         {(id) => (
@@ -156,19 +180,25 @@ function SteelForm({ onSave }: { onSave: (input: SteelInput) => Promise<void> })
       <Field label="Cut length (m)">
         {(id) => <Input id={id} type="number" inputMode="decimal" min="0.001" step="0.001" value={length} onChange={(e) => setLength(e.target.value)} required />}
       </Field>
-      <Button type="submit" busy={busy}>
-        <Plus className="size-4" aria-hidden />
-        Add row
-      </Button>
-      <p className="num text-sm text-muted sm:col-span-2 lg:col-span-5" aria-live="polite">
+      <p className={cx('num text-sm text-muted sm:col-span-2', wide && 'lg:col-span-5 lg:order-last')} aria-live="polite">
         {calc.steelUnitWeight(dia)} kg/m × {Number(bars) || 0} bars × {Number(length) || 0} m ={' '}
         <strong className="text-text">{formatNumber(calc.steelWeight(dia, Number(bars) || 0, Number(length) || 0))} kg</strong>
       </p>
       {Boolean(error) && (
-        <div className="sm:col-span-2 lg:col-span-5">
+        <div className={cx('sm:col-span-2', wide && 'lg:col-span-5 lg:order-last')}>
           <FormError error={error} />
         </div>
       )}
+      <Button type="submit" busy={busy} className={cx(!wide && 'sm:col-span-2 sm:justify-self-end')}>
+        {wide ? (
+          <>
+            <Plus className="size-4" aria-hidden />
+            Add row
+          </>
+        ) : (
+          'Save changes'
+        )}
+      </Button>
     </form>
   )
 }

@@ -3,13 +3,13 @@ import { useState, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router'
 import { Ledger } from '../../components/Ledger'
 import { Modal } from '../../components/Modal'
-import { DeleteRowButton, LedgerSkeleton, PrintButton, PrintHeader, StatStrip } from '../../components/records'
+import { DeleteRowButton, EditRowButton, LedgerSkeleton, PrintButton, PrintHeader, StatStrip } from '../../components/records'
 import { useToast } from '../../components/toast'
 import { Button, EmptyState, ErrorState, Field, FormError, Input, PageHeader, Panel, Select } from '../../components/ui'
 import { calc, formatDate, formatNPR, formatNumber, todayISO } from '../../lib/format'
 import { useAsyncData } from '../../lib/useAsyncData'
 import { useProject } from '../../projects/ProjectLayout'
-import { addLabour, deleteLabour, LABOUR_CATEGORIES, listLabour } from './api'
+import { addLabour, deleteLabour, LABOUR_CATEGORIES, listLabour, updateLabour, type LabourEntry, type LabourInput } from './api'
 
 export function LabourPage() {
   const { project } = useProject()
@@ -17,6 +17,7 @@ export function LabourPage() {
   const filter = { date: params.get('date') ?? '', category: params.get('category') ?? '' }
   const { data, error, reload } = useAsyncData(() => listLabour(project.id, filter), [project.id, filter.date, filter.category])
   const [adding, setAdding] = useState(false)
+  const [editing, setEditing] = useState<LabourEntry | null>(null)
   const toast = useToast()
 
   const totalWage = data?.reduce((s, r) => s + Number(r.total_wage), 0) ?? 0
@@ -116,13 +117,16 @@ export function LabourPage() {
                 side: formatNPR(r.total_wage),
               })}
               actions={(r) => (
-                <DeleteRowButton
-                  what={`${r.category} on ${formatDate(r.entry_date)}`}
-                  onDelete={async () => {
-                    await deleteLabour(r.id)
-                    reload()
-                  }}
-                />
+                <>
+                  <EditRowButton what={`${r.category} on ${formatDate(r.entry_date)}`} onClick={() => setEditing(r)} />
+                  <DeleteRowButton
+                    what={`${r.category} on ${formatDate(r.entry_date)}`}
+                    onDelete={async () => {
+                      await deleteLabour(r.id)
+                      reload()
+                    }}
+                  />
+                </>
               )}
               footer={{ label: 'Total', cells: { 3: formatNumber(manDays), 5: formatNPR(totalWage) } }}
             />
@@ -140,13 +144,28 @@ export function LabourPage() {
           onDone={() => setAdding(false)}
         />
       </Modal>
+
+      <Modal open={Boolean(editing)} title="Edit labour" onClose={() => setEditing(null)}>
+        {editing && (
+          <LabourForm
+            key={editing.id}
+            initial={editing}
+            onSave={async (input) => {
+              await updateLabour(editing.id, input)
+              reload()
+              toast('Changes saved')
+            }}
+            onDone={() => setEditing(null)}
+          />
+        )}
+      </Modal>
     </>
   )
 }
 
-function LabourForm({ onSave, onDone }: { onSave: (input: Parameters<typeof addLabour>[2]) => Promise<void>; onDone: () => void }) {
-  const [workers, setWorkers] = useState('')
-  const [rate, setRate] = useState('')
+function LabourForm({ initial, onSave, onDone }: { initial?: LabourEntry; onSave: (input: LabourInput) => Promise<void>; onDone: () => void }) {
+  const [workers, setWorkers] = useState(initial ? String(initial.worker_count) : '')
+  const [rate, setRate] = useState(initial ? String(initial.daily_rate) : '')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>(null)
   const [addAnother, setAddAnother] = useState(false)
@@ -180,10 +199,10 @@ function LabourForm({ onSave, onDone }: { onSave: (input: Parameters<typeof addL
 
   return (
     <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
-      <Field label="Date">{(id) => <Input id={id} name="entry_date" type="date" defaultValue={todayISO()} max={todayISO()} required />}</Field>
+      <Field label="Date">{(id) => <Input id={id} name="entry_date" type="date" defaultValue={initial?.entry_date ?? todayISO()} max={todayISO()} required />}</Field>
       <Field label="Category">
         {(id) => (
-          <Select id={id} name="category" required>
+          <Select id={id} name="category" defaultValue={initial?.category} required>
             {LABOUR_CATEGORIES.map((c) => (
               <option key={c}>{c}</option>
             ))}
@@ -197,7 +216,7 @@ function LabourForm({ onSave, onDone }: { onSave: (input: Parameters<typeof addL
         {(id) => <Input id={id} type="number" inputMode="decimal" min={0} step="0.01" value={rate} onChange={(e) => setRate(e.target.value)} required />}
       </Field>
       <Field label="Work area" className="sm:col-span-2" hint="What they worked on, e.g. Block A column casting.">
-        {(id) => <Input id={id} name="remarks" required maxLength={300} />}
+        {(id) => <Input id={id} name="remarks" defaultValue={initial?.remarks} required maxLength={300} />}
       </Field>
       <div className="flex items-center justify-between rounded-md bg-surface-2 px-4 py-3 sm:col-span-2" aria-live="polite">
         <span className="text-sm text-muted">Total wage</span>
@@ -206,12 +225,14 @@ function LabourForm({ onSave, onDone }: { onSave: (input: Parameters<typeof addL
       <div className="flex flex-col gap-3 sm:col-span-2">
         <FormError error={error} />
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <label className="flex min-h-11 items-center gap-2 text-sm">
-            <input type="checkbox" checked={addAnother} onChange={(e) => setAddAnother(e.target.checked)} className="size-4" />
-            Add another after saving
-          </label>
-          <Button type="submit" busy={busy}>
-            Save labour
+          {!initial && (
+            <label className="flex min-h-11 items-center gap-2 text-sm">
+              <input type="checkbox" checked={addAnother} onChange={(e) => setAddAnother(e.target.checked)} className="size-4" />
+              Add another after saving
+            </label>
+          )}
+          <Button type="submit" busy={busy} className="ml-auto">
+            {initial ? 'Save changes' : 'Save labour'}
           </Button>
         </div>
       </div>

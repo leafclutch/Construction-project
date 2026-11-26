@@ -1,4 +1,4 @@
-import { Paperclip, Printer, Trash2 } from 'lucide-react'
+import { Paperclip, Pencil, Printer, Trash2 } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { useAuth } from '../auth/AuthProvider'
 import { openFile, type Bucket } from '../lib/files'
@@ -43,6 +43,22 @@ export function StatStrip({ items }: { items: { label: string; value: ReactNode;
         </div>
       ))}
     </dl>
+  )
+}
+
+/** Admin-only edit. Renders nothing for site staff. */
+export function EditRowButton({ what, onClick }: { what: string; onClick: () => void }) {
+  const { isAdmin } = useAuth()
+  if (!isAdmin) return null
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={`Edit ${what}`}
+      className="no-print grid size-11 shrink-0 place-items-center rounded-md text-muted hover:bg-surface-2 hover:text-text"
+    >
+      <Pencil className="size-4" aria-hidden />
+    </button>
   )
 }
 

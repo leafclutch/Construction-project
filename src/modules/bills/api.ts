@@ -1,7 +1,7 @@
 import { fetchAll } from '../../lib/fetchAll'
 import { removeFile, uploadFile } from '../../lib/files'
 import { supabase, type Tables } from '../../lib/supabase'
-import { unwrap } from '../../lib/useAsyncData'
+import { unwrap, updateOne } from '../../lib/useAsyncData'
 
 export type VatBill = Tables<'vat_bills'>
 export type VatBillInput = Pick<VatBill, 'bill_date' | 'bill_no' | 'supplier_name' | 'supplier_pan' | 'taxable_amount' | 'vat_included'>
@@ -26,6 +26,10 @@ export async function addBill(orgId: string, projectId: string, input: VatBillIn
     throw e
   }
 }
+
+/** Edits the bill details; the bill copy stays as it is. */
+export const updateBill = (id: string, input: VatBillInput) =>
+  updateOne(supabase.from('vat_bills').update(input).eq('id', id).select('id'))
 
 export async function deleteBill(row: VatBill) {
   await unwrap(supabase.from('vat_bills').delete().eq('id', row.id))

@@ -25,6 +25,8 @@ Plan, checklist, test results and blockers: `docs/PLAN.md`. Keep it in sync with
 - DB scripts: `pnpm db:push [--dry-run]`, `pnpm gen:types` (both read `.env.local`).
 
 ## Product rules
+- The product name lives in `src/lib/brand.ts` (`APP_NAME`) and `<title>` in `index.html`. Never hard-code it elsewhere.
+- Record edits (owner/admin) reuse the add form with `initial`; saves go through `updateOne(...select('id'))` so an RLS-blocked update errors instead of silently doing nothing.
 - NPR shown in Nepali grouping (Rs. 1,79,42,326.00) via `src/lib/format.ts`.
 - Mobile-first: site staff use phones. Every async screen has loading (same-size skeleton), error with retry, and empty states.
 - Theme tokens only (light + dark).

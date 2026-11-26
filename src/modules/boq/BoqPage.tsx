@@ -4,13 +4,13 @@ import { useSearchParams } from 'react-router'
 import { useAuth } from '../../auth/AuthProvider'
 import { Ledger } from '../../components/Ledger'
 import { Modal } from '../../components/Modal'
-import { DeleteRowButton, LedgerSkeleton, PrintButton, PrintHeader } from '../../components/records'
+import { DeleteRowButton, EditRowButton, LedgerSkeleton, PrintButton, PrintHeader } from '../../components/records'
 import { useToast } from '../../components/toast'
 import { Button, EmptyState, ErrorState, Field, FormError, Input, PageHeader, Panel } from '../../components/ui'
 import { fetchAll } from '../../lib/fetchAll'
 import { calc, formatNPR, formatNumber } from '../../lib/format'
 import { supabase, type Tables } from '../../lib/supabase'
-import { unwrap, useAsyncData } from '../../lib/useAsyncData'
+import { unwrap, updateOne, useAsyncData } from '../../lib/useAsyncData'
 import { useProject } from '../../projects/ProjectLayout'
 
 type BoqItem = Tables<'boq_items'>
@@ -29,6 +29,7 @@ export function BoqPage() {
   const [params, setParams] = useSearchParams()
   const q = params.get('q') ?? ''
   const [adding, setAdding] = useState(false)
+  const [editing, setEditing] = useState<BoqItem | null>(null)
   const toast = useToast()
 
   // Serial numbers follow the BOQ order, so they stay the same when searching.
@@ -105,13 +106,16 @@ export function BoqPage() {
                 side: formatNPR(r.amount),
               })}
               actions={(r) => (
-                <DeleteRowButton
-                  what={`BOQ item ${r.sn}`}
-                  onDelete={async () => {
-                    await unwrap(supabase.from('boq_items').delete().eq('id', r.id))
-                    reload()
-                  }}
-                />
+                <>
+                  <EditRowButton what={`BOQ item ${r.sn}`} onClick={() => setEditing(r)} />
+                  <DeleteRowButton
+                    what={`BOQ item ${r.sn}`}
+                    onDelete={async () => {
+                      await unwrap(supabase.from('boq_items').delete().eq('id', r.id))
+                      reload()
+                    }}
+                  />
+                </>
               )}
               footer={{ label: needle ? 'Total (matching)' : 'Grand total', cells: { 5: formatNPR(total) } }}
             />
@@ -128,13 +132,28 @@ export function BoqPage() {
           }}
         />
       </Modal>
+
+      <Modal open={Boolean(editing)} title="Edit BOQ item" onClose={() => setEditing(null)}>
+        {editing && (
+          <BoqForm
+            key={editing.id}
+            initial={editing}
+            onSave={async (input) => {
+              await updateOne(supabase.from('boq_items').update(input).eq('id', editing.id).select('id'))
+              reload()
+              setEditing(null)
+              toast('Changes saved')
+            }}
+          />
+        )}
+      </Modal>
     </>
   )
 }
 
-function BoqForm({ onSave }: { onSave: (input: BoqInput) => Promise<void> }) {
-  const [qty, setQty] = useState('')
-  const [rate, setRate] = useState('')
+function BoqForm({ initial, onSave }: { initial?: BoqItem; onSave: (input: BoqInput) => Promise<void> }) {
+  const [qty, setQty] = useState(initial ? String(initial.quantity) : '')
+  const [rate, setRate] = useState(initial ? String(initial.rate) : '')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>(null)
 
@@ -146,6 +165,7 @@ function BoqForm({ onSave }: { onSave: (input: BoqInput) => Promise<void> }) {
     setError(null)
     try {
       await onSave({ description: String(f.get('description')).trim(), unit: String(f.get('unit')).trim(), quantity: Number(qty), rate: Number(rate) })
+      if (initial) return
       // BOQs are entered item after item: clear and stay open.
       form.reset()
       setQty('')
@@ -165,6 +185,7 @@ function BoqForm({ onSave }: { onSave: (input: BoqInput) => Promise<void> }) {
           <textarea
             id={id}
             name="description"
+            defaultValue={initial?.description}
             required
             maxLength={1000}
             rows={3}
@@ -173,7 +194,7 @@ function BoqForm({ onSave }: { onSave: (input: BoqInput) => Promise<void> }) {
           />
         )}
       </Field>
-      <Field label="Unit">{(id) => <Input id={id} name="unit" required maxLength={20} list="boq-units" placeholder="m³" />}</Field>
+      <Field label="Unit">{(id) => <Input id={id} name="unit" defaultValue={initial?.unit} required maxLength={20} list="boq-units" placeholder="m³" />}</Field>
       <datalist id="boq-units">
         {['m³', 'm²', 'm', 'kg', 'MT', 'nos', 'LS', 'cft', 'sqft', 'rft'].map((u) => (
           <option key={u} value={u} />
@@ -188,7 +209,7 @@ function BoqForm({ onSave }: { onSave: (input: BoqInput) => Promise<void> }) {
       <div className="flex flex-col gap-3 sm:col-span-3">
         <FormError error={error} />
         <Button type="submit" busy={busy} className="sm:self-end">
-          Add item
+          {initial ? 'Save changes' : 'Add item'}
         </Button>
       </div>
     </form>

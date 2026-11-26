@@ -49,7 +49,7 @@ export function Ledger<T>({ rows, rowKey, columns, mobile, actions, footer }: Pr
                 </th>
               ))}
               {actions && (
-                <th className="w-14 print:hidden">
+                <th className="w-px print:hidden">
                   <span className="sr-only">Actions</span>
                 </th>
               )}
@@ -63,7 +63,11 @@ export function Ledger<T>({ rows, rowKey, columns, mobile, actions, footer }: Pr
                     {c.cell(r)}
                   </td>
                 ))}
-                {actions && <td className="pr-2 print:hidden">{actions(r)}</td>}
+                {actions && (
+                  <td className="pr-2 print:hidden">
+                    <div className="flex justify-end">{actions(r)}</div>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
