@@ -62,7 +62,7 @@ Scope = the CEO's prototype (7 pages + login with Admin / Site Staff), made real
 - [x] App name and role labels in one place (`src/lib/brand.ts`), so the rebrand is one line (+ `<title>` in index.html)
 - [x] DB review: RLS on all 11 tables; security-definer functions pin search_path; `private` schema not usable by anon; every record table has a project_id-leading index (lists + cascade deletes). `created_by`/`accepted_by` FKs left unindexed on purpose (only hit when a user account is deleted, which the app doesn't offer)
 - [x] Migration 3 (`touch_updated_at` pins search_path, Supabase advisor warning) applied to dev with the user's OK; trigger checked, `pnpm test:db` 12/12
-- [ ] Brand name — waiting on the user/CEO choice
+- [x] Brand name: **Thekka** (chosen by the user). Note: a tender-notice app "ThekkaBazar" exists in Nepal; domain availability not checked yet
 - [ ] Sign up → confirm email → onboarding (create firm / join with code) through the real screens — needs the user to sign up a fresh test account, and Supabase Auth redirect URLs set
 - [ ] SMTP for auth emails (Supabase's built-in sender only allows a few emails per hour — not enough for the demo)
 - [ ] Production Supabase project + hosting (see docs/DEPLOY.md)
@@ -71,7 +71,6 @@ Scope = the CEO's prototype (7 pages + login with Admin / Site Staff), made real
 - Money additions inside existing pages (material amount + paid/due, labour advance, client payments on Site Hub). Not built until approved.
 - BS (Bikram Sambat) dates in the UI.
 - Supabase Auth "Confirm email" setting and SMTP provider for the dev/prod projects.
-- Brand name (replaces "Nirman Sathi").
 
 ## Blockers
 - Supabase Auth → URL Configuration: add `http://localhost:5173/**` to Redirect URLs (email confirm + password reset links), and set Site URL.

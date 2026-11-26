@@ -1,6 +1,6 @@
-# Nirman Sathi — project guide
+# Thekka — project guide
 
-Leafclutch project (not Yeti Code Crew). A SaaS for Nepali thekedars (construction contractors) to keep every site record in one place. The CEO's Gemini prototype "Nirman Sathi" is the feature spec; the design is ours to improve. It will be demoed at a thekedar meeting in Kathmandu (~late Dec 2026).
+Leafclutch project (not Yeti Code Crew). A SaaS for Nepali thekedars (construction contractors) to keep every site record in one place. Product name: **Thekka** (ठेक्का, "contract"). The CEO's Gemini prototype "Nirman Sathi" is the feature spec; the design is ours to improve. It will be demoed at a thekedar meeting in Kathmandu (~late Dec 2026).
 
 Plan, checklist, test results and blockers: `docs/PLAN.md`. Keep it in sync with reality.
 
