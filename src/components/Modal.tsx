@@ -15,7 +15,9 @@ export function Modal({ open, title, onClose, children }: { open: boolean; title
   return (
     <dialog
       ref={ref}
-      onClose={onClose}
+      // Only Esc / the user closing it counts. When the parent sets open=false (e.g. to open
+      // a confirm dialog instead) the effect closes it, and that must not call onClose again.
+      onClose={() => open && onClose()}
       aria-labelledby="modal-title"
       className="mb-0 mt-auto max-h-[92dvh] w-full max-w-none rounded-t-xl border border-line bg-surface p-0 text-text backdrop:bg-ink/50 sm:m-auto sm:w-[min(34rem,calc(100vw-2rem))] sm:rounded-lg"
     >
