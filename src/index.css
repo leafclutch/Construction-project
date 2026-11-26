@@ -1,0 +1,107 @@
+@import '@fontsource-variable/archivo/wdth.css';
+@import 'tailwindcss';
+
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+:root {
+  --bg: #eceeea;          /* concrete */
+  --surface: #ffffff;     /* paper */
+  --surface-2: #f6f7f4;
+  --line: #d8dbd4;
+  --text: #1c2540;        /* ink */
+  --muted: #5d6578;
+  --ink: #1c2540;
+  --ink-text: #e9ecf4;
+  --ink-muted: #9aa3bd;
+  --hivis: #f2b705;
+  --hivis-ink: #1c2540;
+  --ledger: #1e7a4f;
+  --ledger-soft: #e3f1e9;
+  --signal: #b42318;
+  --signal-soft: #fbe9e7;
+  --focus: #2457d6;
+  color-scheme: light;
+}
+
+[data-theme='dark'] {
+  --bg: #11161f;
+  --surface: #19202c;
+  --surface-2: #1f2735;
+  --line: #2c3547;
+  --text: #e7eaf0;
+  --muted: #9aa3b5;
+  --ink: #0c1018;
+  --ink-text: #e7eaf0;
+  --ink-muted: #8a93a8;
+  --hivis: #f2b705;
+  --hivis-ink: #1c2540;
+  --ledger: #46b885;
+  --ledger-soft: #18332a;
+  --signal: #f2705f;
+  --signal-soft: #3a1f1c;
+  --focus: #7da2ff;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --font-sans: 'Archivo Variable', ui-sans-serif, system-ui, sans-serif;
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-ink: var(--ink);
+  --color-ink-text: var(--ink-text);
+  --color-ink-muted: var(--ink-muted);
+  --color-hivis: var(--hivis);
+  --color-hivis-ink: var(--hivis-ink);
+  --color-ledger: var(--ledger);
+  --color-ledger-soft: var(--ledger-soft);
+  --color-signal: var(--signal);
+  --color-signal-soft: var(--signal-soft);
+  --color-focus: var(--focus);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-bg font-sans text-text antialiased;
+    font-variation-settings: 'wdth' 100;
+  }
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@utility num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Condensed signboard figures for money. */
+@utility figure {
+  font-variant-numeric: tabular-nums;
+  font-variation-settings: 'wdth' 72;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+  }
+}
