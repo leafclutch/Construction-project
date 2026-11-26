@@ -6,16 +6,9 @@ import { DeleteRowButton, LedgerSkeleton } from '../components/records'
 import { useToast } from '../components/toast'
 import { Button, EmptyState, ErrorState, FormError, PageHeader, Panel, Select } from '../components/ui'
 import { formatDate } from '../lib/format'
-import { supabase, type Enums } from '../lib/supabase'
+import { APP_NAME, ROLE_HELP, ROLE_LABEL, type Role } from '../lib/brand'
+import { supabase } from '../lib/supabase'
 import { unwrap, useAsyncData } from '../lib/useAsyncData'
-
-type Role = Enums<'member_role'>
-const ROLE_LABEL: Record<Role, string> = { owner: 'Owner', admin: 'Admin', site_staff: 'Site staff' }
-const ROLE_HELP: Record<Role, string> = {
-  owner: 'Created the firm. Full control.',
-  admin: 'Manages projects, BOQ, drawings and team. Can edit and delete records.',
-  site_staff: 'Adds labour, materials, bills and steel. Cannot edit or delete.',
-}
 
 const listMembers = (orgId: string) =>
   unwrap(supabase.from('memberships').select('user_id, role, created_at, profiles(full_name, email)').eq('org_id', orgId).order('created_at'))
@@ -178,7 +171,7 @@ function InvitePanel({ orgId, orgName, invites }: { orgId: string; orgName: stri
   }
 
   function shareText(code: string) {
-    return `Join ${orgName} on Nirman Sathi. Sign up at ${window.location.origin}/signup and enter invite code ${code}.`
+    return `Join ${orgName} on ${APP_NAME}. Sign up at ${window.location.origin}/signup and enter invite code ${code}.`
   }
 
   async function share(code: string) {

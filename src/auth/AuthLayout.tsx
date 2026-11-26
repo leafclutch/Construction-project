@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import { BrandMark } from '../components/BrandMark'
+import { APP_NAME } from '../lib/brand'
 
 export function AuthLayout({ title, subtitle, children, footer }: { title: string; subtitle?: string; children: ReactNode; footer?: ReactNode }) {
   return (
@@ -9,7 +10,7 @@ export function AuthLayout({ title, subtitle, children, footer }: { title: strin
         <Link to="/" className="inline-flex items-center gap-2.5 rounded-md">
           <BrandMark className="size-9" />
           <span className="text-lg font-bold tracking-tight" style={{ fontVariationSettings: "'wdth' 85" }}>
-            Nirman Sathi
+            {APP_NAME}
           </span>
         </Link>
       </header>

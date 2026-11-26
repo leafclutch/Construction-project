@@ -11,6 +11,7 @@ import {
   Ruler,
   Sun,
   Truck,
+  UserRound,
   Users,
   UsersRound,
   type LucideIcon,
@@ -19,6 +20,7 @@ import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation, useMatch, useNavigate } from 'react-router'
 import { useAuth } from '../auth/AuthProvider'
 import { BrandMark } from '../components/BrandMark'
+import { APP_NAME, ROLE_LABEL } from '../lib/brand'
 import { cx } from '../components/ui'
 import { ProjectsProvider, useProjects } from '../projects/ProjectsProvider'
 import { currentTheme, setTheme } from './theme'
@@ -88,7 +90,7 @@ function Shell() {
           <Menu className="size-5" aria-hidden />
         </button>
         <BrandMark className="size-7 shrink-0" />
-        <span className="truncate font-semibold">{project?.name ?? 'Nirman Sathi'}</span>
+        <span className="truncate font-semibold">{project?.name ?? APP_NAME}</span>
       </header>
 
       {drawerOpen && <Drawer onClose={() => setDrawerOpen(false)} />}
@@ -124,7 +126,7 @@ function Drawer({ onClose }: { onClose: () => void }) {
 }
 
 function Sidebar() {
-  const { membership, memberships, selectOrg, signOut, session } = useAuth()
+  const { membership, memberships, selectOrg, signOut } = useAuth()
   const projectId = useMatch('/p/:projectId/*')?.params.projectId
   const navigate = useNavigate()
   const { projects } = useProjects()
@@ -142,7 +144,7 @@ function Sidebar() {
         <BrandMark className="size-9 shrink-0" />
         <div className="min-w-0">
           <p className="truncate font-bold leading-tight" style={{ fontVariationSettings: "'wdth' 85" }}>
-            Nirman Sathi
+            {APP_NAME}
           </p>
           {memberships && memberships.length > 1 ? (
             <select
@@ -224,9 +226,13 @@ function Sidebar() {
       </div>
 
       <div className="mt-auto flex flex-col gap-1 border-t border-white/10 pt-4">
-        <p className="truncate px-3 pb-1 text-xs text-ink-muted">
-          {session?.user.email} · {membership?.role === 'site_staff' ? 'Site staff' : membership?.role === 'owner' ? 'Owner' : 'Admin'}
-        </p>
+        <NavLink to="/profile" className={linkClass}>
+          <UserRound className="size-[1.125rem] shrink-0" aria-hidden />
+          <span className="min-w-0">
+            <span className="block">My profile</span>
+            {membership && <span className="block text-xs font-normal text-ink-muted">{ROLE_LABEL[membership.role]}</span>}
+          </span>
+        </NavLink>
         <button
           type="button"
           onClick={() => {

@@ -45,6 +45,7 @@ export const router = createBrowserRouter([
               { index: true, element: <HomeRedirect /> },
               { path: '/projects', element: <ProjectsPage /> },
               { path: '/team', lazy: () => import('../team/TeamPage').then((m) => ({ Component: m.TeamPage })) },
+              { path: '/profile', lazy: () => import('../profile/ProfilePage').then((m) => ({ Component: m.ProfilePage })) },
               {
                 path: '/p/:projectId',
                 element: <ProjectLayout />,

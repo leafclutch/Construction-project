@@ -25,6 +25,13 @@ export function getErrorMessage(error: unknown): string {
       return 'Confirm your email first. Check your inbox for the link.'
     case 'user_already_exists':
       return 'An account with this email already exists. Log in instead.'
+    case 'password_mismatch':
+      return 'The two passwords do not match.'
+    case 'same_password':
+      return 'Choose a password different from the current one.'
+    case 'reauthentication_needed':
+    case 'session_expired':
+      return 'For safety, log out, log in again, then change your password.'
     case 'weak_password':
       return 'Choose a stronger password (at least 8 characters).'
     case 'over_email_send_rate_limit':

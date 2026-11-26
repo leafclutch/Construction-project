@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router'
 import { Button, Field, FormError, Input } from '../components/ui'
 import { supabase } from '../lib/supabase'
 import { AuthLayout } from './AuthLayout'
+import { APP_NAME } from '../lib/brand'
 
 export function LoginPage() {
   const navigate = useNavigate()
@@ -30,7 +31,7 @@ export function LoginPage() {
       subtitle="Your sites, bills and wages in one place."
       footer={
         <>
-          New to Nirman Sathi?{' '}
+          New to {APP_NAME}?{' '}
           <Link to="/signup" className="font-semibold text-text underline underline-offset-4">
             Create an account
           </Link>
