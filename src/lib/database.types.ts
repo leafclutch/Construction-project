@@ -101,38 +101,6 @@ isOneToOne: false
       referencedColumns: ["id","org_id"]
     }
                   ]
-                },"invites": {
-                  Row: {
-                    "accepted_at": string | null,"accepted_by": string | null,"code": string,"created_at": string,"created_by": string,"expires_at": string,"id": string,"org_id": string,"role": Database["public"]['Enums']["member_role"]
-                  }
-                  ComputedFields: never
-                  Insert: {
-                    "accepted_at"?: string | null,"accepted_by"?: string | null,"code"?: string,"created_at"?: string,"created_by"?: string,"expires_at"?: string,"id"?: string,"org_id": string,"role": Database["public"]['Enums']["member_role"]
-                  }
-                  Update: {
-                    "accepted_at"?: string | null,"accepted_by"?: string | null,"code"?: string,"created_at"?: string,"created_by"?: string,"expires_at"?: string,"id"?: string,"org_id"?: string,"role"?: Database["public"]['Enums']["member_role"]
-                  }
-                  Relationships: [
-                    {
-      foreignKeyName: "invites_accepted_by_fkey"
-      columns: ["accepted_by"]
-isOneToOne: false
-      referencedRelation: "profiles"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "invites_created_by_fkey"
-      columns: ["created_by"]
-isOneToOne: false
-      referencedRelation: "profiles"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "invites_org_id_fkey"
-      columns: ["org_id"]
-isOneToOne: false
-      referencedRelation: "organizations"
-      referencedColumns: ["id"]
-    }
-                  ]
                 },"labour_entries": {
                   Row: {
                     "category": string,"created_at": string,"created_by": string | null,"daily_rate": number,"entry_date": string,"id": string,"org_id": string,"project_id": string,"remarks": string,"total_wage": number | null,"worker_count": number
@@ -199,14 +167,14 @@ isOneToOne: false
                   ]
                 },"memberships": {
                   Row: {
-                    "created_at": string,"org_id": string,"role": Database["public"]['Enums']["member_role"],"user_id": string
+                    "active": boolean,"created_at": string,"org_id": string,"role": Database["public"]['Enums']["member_role"],"user_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "created_at"?: string,"org_id": string,"role": Database["public"]['Enums']["member_role"],"user_id": string
+                    "active"?: boolean,"created_at"?: string,"org_id": string,"role": Database["public"]['Enums']["member_role"],"user_id": string
                   }
                   Update: {
-                    "created_at"?: string,"org_id"?: string,"role"?: Database["public"]['Enums']["member_role"],"user_id"?: string
+                    "active"?: boolean,"created_at"?: string,"org_id"?: string,"role"?: Database["public"]['Enums']["member_role"],"user_id"?: string
                   }
                   Relationships: [
                     {
@@ -225,42 +193,120 @@ isOneToOne: false
                   ]
                 },"organizations": {
                   Row: {
-                    "created_at": string,"id": string,"name": string
+                    "created_at": string,"id": string,"name": string,"status": Database["public"]['Enums']["org_status"]
                   }
                   ComputedFields: never
                   Insert: {
-                    "created_at"?: string,"id"?: string,"name": string
+                    "created_at"?: string,"id"?: string,"name": string,"status"?: Database["public"]['Enums']["org_status"]
                   }
                   Update: {
-                    "created_at"?: string,"id"?: string,"name"?: string
+                    "created_at"?: string,"id"?: string,"name"?: string,"status"?: Database["public"]['Enums']["org_status"]
                   }
                   Relationships: [
                     
+                  ]
+                },"platform_admins": {
+                  Row: {
+                    "created_at": string,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"user_id": string
+                  }
+                  Update: {
+                    "created_at"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "platform_admins_user_id_fkey"
+      columns: ["user_id"]
+isOneToOne: true
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
                   ]
                 },"profiles": {
                   Row: {
-                    "created_at": string,"email": string | null,"full_name": string,"id": string
+                    "avatar_path": string | null,"created_at": string,"email": string | null,"full_name": string,"id": string,"must_change_password": boolean
                   }
                   ComputedFields: never
                   Insert: {
-                    "created_at"?: string,"email"?: string | null,"full_name"?: string,"id": string
+                    "avatar_path"?: string | null,"created_at"?: string,"email"?: string | null,"full_name"?: string,"id": string,"must_change_password"?: boolean
                   }
                   Update: {
-                    "created_at"?: string,"email"?: string | null,"full_name"?: string,"id"?: string
+                    "avatar_path"?: string | null,"created_at"?: string,"email"?: string | null,"full_name"?: string,"id"?: string,"must_change_password"?: boolean
                   }
                   Relationships: [
                     
                   ]
-                },"projects": {
+                },"project_finance": {
                   Row: {
-                    "billed_amount": number,"client_name": string | null,"code": string | null,"contract_amount": number,"created_at": string,"created_by": string | null,"id": string,"location": string | null,"name": string,"org_id": string,"start_date": string | null,"status": Database["public"]['Enums']["project_status"],"updated_at": string
+                    "billed_amount": number,"contract_amount": number,"org_id": string,"project_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "billed_amount"?: number,"client_name"?: string | null,"code"?: string | null,"contract_amount"?: number,"created_at"?: string,"created_by"?: string | null,"id"?: string,"location"?: string | null,"name": string,"org_id": string,"start_date"?: string | null,"status"?: Database["public"]['Enums']["project_status"],"updated_at"?: string
+                    "billed_amount"?: number,"contract_amount"?: number,"org_id": string,"project_id": string
                   }
                   Update: {
-                    "billed_amount"?: number,"client_name"?: string | null,"code"?: string | null,"contract_amount"?: number,"created_at"?: string,"created_by"?: string | null,"id"?: string,"location"?: string | null,"name"?: string,"org_id"?: string,"start_date"?: string | null,"status"?: Database["public"]['Enums']["project_status"],"updated_at"?: string
+                    "billed_amount"?: number,"contract_amount"?: number,"org_id"?: string,"project_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "project_finance_project_id_org_id_fkey"
+      columns: ["project_id","org_id"]
+isOneToOne: true
+      referencedRelation: "project_summaries"
+      referencedColumns: ["project_id","org_id"]
+    },{
+      foreignKeyName: "project_finance_project_id_org_id_fkey"
+      columns: ["project_id","org_id"]
+isOneToOne: true
+      referencedRelation: "projects"
+      referencedColumns: ["id","org_id"]
+    }
+                  ]
+                },"project_members": {
+                  Row: {
+                    "created_at": string,"org_id": string,"permissions": (string)[],"project_id": string,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"org_id": string,"permissions"?: (string)[],"project_id": string,"user_id": string
+                  }
+                  Update: {
+                    "created_at"?: string,"org_id"?: string,"permissions"?: (string)[],"project_id"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "project_members_org_id_user_id_fkey"
+      columns: ["org_id","user_id"]
+isOneToOne: false
+      referencedRelation: "memberships"
+      referencedColumns: ["org_id","user_id"]
+    },{
+      foreignKeyName: "project_members_project_id_org_id_fkey"
+      columns: ["project_id","org_id"]
+isOneToOne: false
+      referencedRelation: "project_summaries"
+      referencedColumns: ["project_id","org_id"]
+    },{
+      foreignKeyName: "project_members_project_id_org_id_fkey"
+      columns: ["project_id","org_id"]
+isOneToOne: false
+      referencedRelation: "projects"
+      referencedColumns: ["id","org_id"]
+    }
+                  ]
+                },"projects": {
+                  Row: {
+                    "client_name": string | null,"code": string | null,"created_at": string,"created_by": string | null,"id": string,"location": string | null,"name": string,"org_id": string,"start_date": string | null,"status": Database["public"]['Enums']["project_status"],"updated_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "client_name"?: string | null,"code"?: string | null,"created_at"?: string,"created_by"?: string | null,"id"?: string,"location"?: string | null,"name": string,"org_id": string,"start_date"?: string | null,"status"?: Database["public"]['Enums']["project_status"],"updated_at"?: string
+                  }
+                  Update: {
+                    "client_name"?: string | null,"code"?: string | null,"created_at"?: string,"created_by"?: string | null,"id"?: string,"location"?: string | null,"name"?: string,"org_id"?: string,"start_date"?: string | null,"status"?: Database["public"]['Enums']["project_status"],"updated_at"?: string
                   }
                   Relationships: [
                     {
@@ -274,6 +320,26 @@ isOneToOne: false
       columns: ["org_id"]
 isOneToOne: false
       referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"push_subscriptions": {
+                  Row: {
+                    "auth": string,"created_at": string,"endpoint": string,"id": string,"p256dh": string,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "auth": string,"created_at"?: string,"endpoint": string,"id"?: string,"p256dh": string,"user_id": string
+                  }
+                  Update: {
+                    "auth"?: string,"created_at"?: string,"endpoint"?: string,"id"?: string,"p256dh"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "push_subscriptions_user_id_fkey"
+      columns: ["user_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
       referencedColumns: ["id"]
     }
                   ]
@@ -335,15 +401,12 @@ isOneToOne: false
                 }
           }
           Functions: {
-            "accept_invite":
-{ Args: { "p_code": string }; Returns: string
-                           },
-"create_organization":
-{ Args: { "p_name": string }; Returns: string
+            "save_push_subscription":
+{ Args: { "p_auth": string,"p_endpoint": string,"p_p256dh": string }; Returns: undefined
                            }
           }
           Enums: {
-            "drawing_category": "structural"|"architectural"|"mep"|"as_built","member_role": "owner"|"admin"|"site_staff","project_status": "running"|"on_hold"|"completed"
+            "drawing_category": "structural"|"architectural"|"mep"|"as_built","member_role": "owner"|"admin"|"site_staff","org_status": "active"|"suspended","project_status": "running"|"on_hold"|"completed"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -459,7 +522,7 @@ export type CompositeTypes<
 export const Constants = {
   "public": {
           Enums: {
-            "drawing_category": ["structural", "architectural", "mep", "as_built"],"member_role": ["owner", "admin", "site_staff"],"project_status": ["running", "on_hold", "completed"]
+            "drawing_category": ["structural", "architectural", "mep", "as_built"],"member_role": ["owner", "admin", "site_staff"],"org_status": ["active", "suspended"],"project_status": ["running", "on_hold", "completed"]
           }
         }
 } as const

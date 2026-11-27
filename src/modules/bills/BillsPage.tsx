@@ -2,18 +2,20 @@ import { FileText, Plus } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { Ledger } from '../../components/Ledger'
 import { Modal } from '../../components/Modal'
+import { PendingEntries } from '../../components/PendingEntries'
 import { DeleteRowButton, EditRowButton, FileLink, FilePicker, LedgerSkeleton, PrintButton, PrintHeader, StatStrip } from '../../components/records'
 import { useToast } from '../../components/toast'
 import { Button, EmptyState, ErrorState, Field, FormError, Input, PageHeader, Panel } from '../../components/ui'
 import { MAX_RECEIPT_BYTES } from '../../lib/files'
 import { calc, formatDate, formatNPR, formatNumber, todayISO } from '../../lib/format'
 import { useAsyncData } from '../../lib/useAsyncData'
+import { savedText } from '../../lib/outbox'
 import { useProject } from '../../projects/ProjectLayout'
 import { addBill, deleteBill, listBills, updateBill, type VatBill, type VatBillInput } from './api'
 
 export function BillsPage() {
-  const { project } = useProject()
-  const { data, error, reload } = useAsyncData(() => listBills(project.id), [project.id])
+  const { project, can } = useProject()
+  const { data, error, reload } = useAsyncData(() => listBills(project.id), [project.id], 'bills')
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState<VatBill | null>(null)
   const toast = useToast()
@@ -29,10 +31,12 @@ export function BillsPage() {
         actions={
           <>
             <PrintButton />
-            <Button onClick={() => setAdding(true)}>
-              <Plus className="size-4" aria-hidden />
-              Add bill
-            </Button>
+            {can('bills.add') && (
+              <Button onClick={() => setAdding(true)}>
+                <Plus className="size-4" aria-hidden />
+                Add bill
+              </Button>
+            )}
           </>
         }
       />
@@ -45,6 +49,8 @@ export function BillsPage() {
           { label: 'Gross total', value: data ? formatNPR(sum('gross_amount')) : '…', tone: 'money' },
         ]}
       />
+
+      <PendingEntries projectId={project.id} table="vat_bills" />
 
       {error && !data ? (
         <ErrorState error={error} onRetry={reload} />
@@ -103,8 +109,9 @@ export function BillsPage() {
               })}
               actions={(r) => (
                 <>
-                  <EditRowButton what={`bill ${r.bill_no}`} onClick={() => setEditing(r)} />
+                  <EditRowButton module="bills" what={`bill ${r.bill_no}`} onClick={() => setEditing(r)} />
                   <DeleteRowButton
+                    module="bills"
                     what={`bill ${r.bill_no}`}
                     onDelete={async () => {
                       await deleteBill(r)
@@ -125,10 +132,10 @@ export function BillsPage() {
       <Modal open={adding} title="Add VAT bill" onClose={() => setAdding(false)}>
         <BillForm
           onSave={async (input, file) => {
-            await addBill(project.org_id, project.id, input, file)
+            const { queued } = await addBill(project.org_id, project.id, input, file)
             reload()
             setAdding(false)
-            toast('Bill added')
+            toast(savedText(queued, 'Bill added'))
           }}
         />
       </Modal>
@@ -151,7 +158,7 @@ export function BillsPage() {
   )
 }
 
-function BillForm({ initial, onSave }: { initial?: VatBill; onSave: (input: VatBillInput, file: File | null) => Promise<void> }) {
+export function BillForm({ initial, onSave }: { initial?: VatBill; onSave: (input: VatBillInput, file: File | null) => Promise<void> }) {
   const [taxable, setTaxable] = useState(initial ? String(initial.taxable_amount) : '')
   const [vatIncluded, setVatIncluded] = useState(initial?.vat_included ?? true)
   const [busy, setBusy] = useState(false)
@@ -214,7 +221,7 @@ function BillForm({ initial, onSave }: { initial?: VatBill; onSave: (input: VatB
       </dl>
       {!initial && (
         <Field label="Bill photo or PDF" className="sm:col-span-2" hint="Optional, up to 10 MB.">
-          {(id) => <FilePicker id={id} name="bill_file" accept="image/*,application/pdf" maxBytes={MAX_RECEIPT_BYTES} label="Take photo or choose file" />}
+          {(id) => <FilePicker id={id} name="bill_file" accept="image/*,application/pdf" maxBytes={MAX_RECEIPT_BYTES} photo />}
         </Field>
       )}
       <div className="flex flex-col gap-3 sm:col-span-2">

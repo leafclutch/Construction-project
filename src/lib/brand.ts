@@ -1,7 +1,6 @@
 import type { Enums } from './supabase'
 
-/** Product name shown in the UI. Also update <title> in index.html when it changes. */
-export const APP_NAME = 'Thekka'
+export { APP_NAME } from './appName'
 
 export type Role = Enums<'member_role'>
 

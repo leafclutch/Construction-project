@@ -1,6 +1,6 @@
 import { HardHat, Plus } from 'lucide-react'
 import { useState } from 'react'
-import { Link, Navigate, useNavigate } from 'react-router'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router'
 import { useAuth } from '../auth/AuthProvider'
 import { Modal } from '../components/Modal'
 import { useToast } from '../components/toast'
@@ -10,19 +10,12 @@ import { createProject } from './api'
 import { ProjectForm, statusLabel } from './ProjectForm'
 import { useProjects } from './ProjectsProvider'
 
-const LAST_PROJECT = 'ns.project'
-
-export function rememberProject(id: string) {
-  localStorage.setItem(LAST_PROJECT, id)
-}
-
-/** "/" opens the last project, the only project, or the list. */
+/** "/" opens the current project (last opened, or the only one), else the list. */
 export function HomeRedirect() {
-  const { projects, error } = useProjects()
+  const { projects, current, error } = useProjects()
+  const { search } = useLocation()
   if (!projects) return error ? <Navigate to="/projects" replace /> : <Skeleton className="h-56 w-full" />
-  const last = localStorage.getItem(LAST_PROJECT)
-  const target = projects.find((p) => p.id === last) ?? (projects.length === 1 ? projects[0] : null)
-  return <Navigate to={target ? `/p/${target.id}` : '/projects'} replace />
+  return <Navigate to={`${current ? `/p/${current.id}` : '/projects'}${search}`} replace />
 }
 
 export function ProjectsPage() {
@@ -75,7 +68,7 @@ export function ProjectsPage() {
                 </div>
               </>
             ) : (
-              'Your firm owner has not added a project yet.'
+              'You have not been added to a project yet. Ask the firm owner to add you.'
             )}
           </EmptyState>
         </Panel>
@@ -83,8 +76,8 @@ export function ProjectsPage() {
         <Panel>
           <ul>
             {projects.map((p) => {
-              const contract = Number(p.contract_amount)
-              const pct = contract > 0 ? Math.min(100, (Number(p.billed_amount) / contract) * 100) : 0
+              const contract = Number(p.finance?.contract_amount ?? 0)
+              const pct = contract > 0 ? Math.min(100, (Number(p.finance?.billed_amount) / contract) * 100) : 0
               return (
                 <li key={p.id} className="border-b border-line last:border-0">
                   <Link to={`/p/${p.id}`} className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 p-4 hover:bg-surface-2">
@@ -102,12 +95,14 @@ export function ProjectsPage() {
                       </p>
                       <p className="mt-0.5 truncate text-sm text-muted">{[p.location, p.client_name].filter(Boolean).join(', ') || 'No location added'}</p>
                     </div>
-                    <div className="flex w-full items-center gap-3 sm:w-56">
-                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-line" aria-hidden>
-                        <div className="h-full bg-ledger" style={{ width: `${pct}%` }} />
+                    {p.finance && (
+                      <div className="flex w-full items-center gap-3 sm:w-56">
+                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-line" aria-hidden>
+                          <div className="h-full bg-ledger" style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="num w-24 text-right text-sm font-semibold">{formatNPRShort(contract)}</span>
                       </div>
-                      <span className="num w-24 text-right text-sm font-semibold">{formatNPRShort(contract)}</span>
-                    </div>
+                    )}
                   </Link>
                 </li>
               )
@@ -119,8 +114,8 @@ export function ProjectsPage() {
       <Modal open={creating} title="New project" onClose={() => setCreating(false)}>
         <ProjectForm
           submitLabel="Create project"
-          onSubmit={async (input) => {
-            const p = await createProject(membership!.orgId, input)
+          onSubmit={async (input, contract) => {
+            const p = await createProject(membership!.orgId, input, contract)
             reload()
             setCreating(false)
             toast('Project created')

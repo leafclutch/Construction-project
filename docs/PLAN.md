@@ -63,19 +63,54 @@ Scope = the CEO's prototype (7 pages + login with Admin / Site Staff), made real
 - [x] DB review: RLS on all 11 tables; security-definer functions pin search_path; `private` schema not usable by anon; every record table has a project_id-leading index (lists + cascade deletes). `created_by`/`accepted_by` FKs left unindexed on purpose (only hit when a user account is deleted, which the app doesn't offer)
 - [x] Migration 3 (`touch_updated_at` pins search_path, Supabase advisor warning) applied to dev with the user's OK; trigger checked, `pnpm test:db` 12/12
 - [x] Brand name: **Thekka** (chosen by the user). Note: a tender-notice app "ThekkaBazar" exists in Nepal; domain availability not checked yet
-- [ ] Sign up → confirm email → onboarding (create firm / join with code) through the real screens — needs the user to sign up a fresh test account, and Supabase Auth redirect URLs set
-- [ ] SMTP for auth emails (Supabase's built-in sender only allows a few emails per hour — not enough for the demo)
+- [x] ~~Sign up / email confirm / invite codes~~ replaced by the managed model (Phase 7). No SMTP needed: no email is ever sent
 - [ ] Production Supabase project + hosting (see docs/DEPLOY.md)
+
+### Phase 7 — Managed SaaS + per-project permissions (user decision 2026-11-27)
+Thekka is run by Leafclutch: super admins create firms and owner logins; owners create staff and choose, per project, what each person can do. No public signup, no email verification.
+- [x] Migration 4: `platform_admins`, `organizations.status` (pause a firm), `memberships.active` (turn a person off), `profiles.must_change_password`, `project_members` (per-project permission list, checked by the DB), money moved to `project_finance` (needs `money.view`). Every policy rewritten around `private.can(org, project, perm)`; super admin reads everything, writes nothing. Invites, `accept_invite`, `create_organization` removed
+- [x] Edge Function `accounts` (deployed to dev): create_firm, set_firm_status, create_staff, reset_password. Checks the caller first; accounts are created already confirmed; 12-character temporary passwords; undo on failure
+- [x] Tests: `pnpm test:db` 30/30 — project scoping, each toggle, money hidden, staff can't see other staff, turned-off member, paused firm, super admin read-only, tenant isolation, storage by permission, function called as super admin / owner / staff (403), duplicate email (409)
+- [x] `pnpm test` 11/11 incl. the app's permission list = the DB's list (read from the migration)
+- [x] First login with a temporary password forces "Set your password"
+- [x] Signup, onboarding, forgot/reset password pages removed; login says to ask the owner (or support) for a reset
+- [x] Staff page (`/staff`): search, add staff (optionally straight onto a project with toggles), copy/share login details, reset password, turn access off/on, owner changes role
+- [x] Project → Team (`/p/:id/team`): pick from staff (searchable) or create a new person, permission toggles with presets (Site supervisor, Store keeper, Accountant, Viewer) + See money, edit, remove
+- [x] Super admin (`/platform`): firms list with search, new firm (owner login shown once + copy), pause/turn on, reset owner password, open a firm read-only (banner, no edit buttons, DB blocks writes)
+- [x] Menus, buttons and pages follow the permissions (module pages show "no access" when view is off; money hidden on Site Hub and project list)
+- [x] Sidebar stays the same on every page (keeps the last opened project's menu); styled project dropdown with search and arrow keys
+- [x] Browser: site staff with no project sees "not added yet", cannot open Staff or a project by URL
+- [x] Browser (owner): Staff page, Team tab add-from-staff with Store keeper preset, toggle rules (add turns on view; view off clears the row), new person with taken email (clear message) and new email (login card, copy works), turn access off/on, new project with contract amount → billing → delete (money row removed with it). Fixed: double scrollbar in tall dialogs (shared Modal); sidebar now falls back to the only project
+- [x] Browser (new staff, Site supervisor): first login forced "Set your password" (flag cleared in DB); sees only the assigned project, no money on the board, no Team/Staff (pages say "no access" by URL too), Labour add + edit but no delete, BOQ view only; edit saved through RLS. Phone 375: no sideways scroll, bottom tabs Hub/Labour/Materials/Bills/More
+- [x] Browser (super admin): lands on Firms; create firm + owner login (card + copy); open a firm read-only (banner; no add/edit/delete on Site Hub, Labour, Team, Staff); pause (badge, toast) and turn back on; reset owner password. Fixed: the password card after a reset said "Firm created"/"Login created" (now "New temporary password"); admin header now stays on one row at 320 px and the firm search placeholder is no longer cut off
+- [x] Top bar on every page: breadcrumb (Home › Project › Section; Home = projects list) and an avatar menu (name, role · firm, My profile, Dark/Light mode, Log out). Removed those three from the sidebar; sidebar sections share one 10px gap and desktop rows are 32px (phones keep 44px), so the menu fits a ~600px tall window with no scroll; thin sidebar scrollbar. Same avatar menu in the super admin header. Profile page: identity card + name/password side by side on desktop; firm list only with 2+ firms. Browser-tested as owner (desktop, 320, 375, dark) and super admin (admin header menu, profile, menu while viewing a firm read-only)
+- [x] Profile photos: migration 6 (`profiles.avatar_path` must point into the own folder, private `avatars` bucket, own-folder-only policies) + DB test + profile page Add/Change/Remove photo (shrunk to 512 px) + avatar in the top bar with initials fallback. Applied to dev (user OK); `pnpm test:db` 36/36. Browser (support, dev): add → photo in top bar and card; change → new 512 px file (4 KB), old file deleted; remove → initials, no files left; 320 px fits
+
+### Phase 8 — Installable app (PWA), offline first (user decision 2026-11-27)
+Most people will use Thekka as an app on Android phones with weak signal on site.
+- [x] Migration 5 (dev): client ids allowed on the 4 add-able tables, `push_subscriptions` (own rows only, saved through `save_push_subscription`), `pg_net` trigger that calls the `push` function for site_staff inserts. Function `push` deployed to dev with VAPID + secret; Vault rows set
+- [x] Tests: `pnpm test:db` 35/35 (double insert with the same id = one row, push subscription RLS, trigger fires only for staff); `tests/push.integration.test.ts` (secret check)
+- [x] Manifest, icons (192/512/maskable/apple), service worker (precache, SPA fallback, push, notification click opens the record page), update banner, theme-color follows light/dark
+- [x] Offline viewing: lists cached on the phone per user (IndexedDB), login works offline from the last loaded firm
+- [x] Offline adding (browser-tested as staff on the prod build, offline faked by failing Supabase requests in the tab): labour, materials (with challan photo), bills (with photo), steel. Saved on the phone, uploaded in order when signal returns; status strip under the top bar; "On this phone, not uploaded yet" list on each page with Retry/Discard; log out warns before deleting unsent entries
+- [x] Phone UI (browser-tested as support at 320/375 and staff at 375, light + dark): app bar with back arrow + page title, bottom tabs on every page with a raised + (quick add sheet using the same forms), home-screen shortcuts (Add labour / Add material), pull to refresh, page cross-fade, no tap flash / bounce
+- [x] Camera: "Take photo" opens the back camera; photos shrunk to 1600 px JPEG before saving (drawings untouched)
+- [ ] Install (built; needs the prod build test): card on Projects/Site Hub (phones, hide for 14 days), "Install app" in the avatar menu, iPhone Share → Add to Home Screen steps
+- [x] Push in the app (browser-tested in Brave desktop on the prod build): profile toggle "Notifications on this phone" (owner/admin), card after install, unsubscribed on log out
+- [ ] Real Android phone test (needs an https URL)
 
 ## Open decisions (user / CEO)
 - Money additions inside existing pages (material amount + paid/due, labour advance, client payments on Site Hub). Not built until approved.
 - BS (Bikram Sambat) dates in the UI.
-- Supabase Auth "Confirm email" setting and SMTP provider for the dev/prod projects.
 
 ## Blockers
-- Supabase Auth → URL Configuration: add `http://localhost:5173/**` to Redirect URLs (email confirm + password reset links), and set Site URL.
+- Supabase dashboard (dev): Authentication → Sign In / Providers → turn off "Allow new users to sign up". Safe either way (a self-signed-up account belongs to no firm and sees nothing), but it should be off.
 
 ## Test log
+- 2026-11-27 (run 12): PWA. `pnpm test` 19/19, `tsc -b` clean, lint only old hints, build precaches 35 files. Prod preview: service worker active, app opens with the server stopped. Dev as support at 320/375: app bar, tabs, offline strip, dark mode, no sideways scroll. Update banner: a new build showed "A new version of Thekka is ready", Reload activated it. Fixed: empty gap above title-only pages on phones.
+- 2026-11-27 (run 13): PWA as Hari (staff) on the prod build at 375, offline faked in the tab. + sheet shows exactly his 4 add permissions. Offline: labour + VAT bill with a 3.3 MB photo (shrunk to 807 KB, thumbnail) saved on the phone; Bills page opened offline from the cache with the pending panel; back online both uploaded by themselves, DB has exactly 1 row each and the photo at `<id>-name`; trigger called `push` (200). Log out with an unsent entry shows the warning (Cancel focused); after Cancel + online it uploaded. Log out clears cached lists and login data. Staff don't see the notifications toggle. Fixed: "2 entrys" → "2 entries". Owner (Sita) notification toggle in Brave: permission granted but Brave's push service refuses; the app now says so clearly instead of "Something went wrong". With Brave's push setting on: Sita subscribed (saved in `push_subscriptions`); a staff labour row in another firm (RAR) → function `{sent:0}`, so no cross-firm notification. Log out removed Sita's subscription. Owner of RAR turned it on; a staff labour row → `{sent:1}` and the phone showed "Labour added · Area Police Office, Duhabi — Hari Test: 4 × Mason" linking to the Labour page. Home-screen shortcut `/?add=labour` opens the project with "Add labour" and drops `?add` from the URL. Install card renders when Brave offers install (DOM-checked; hidden on desktop by design; the window couldn't be resized to see it at phone width); "Install app" shows in the avatar menu.
+- 2026-11-27 (run 11): top bar + breadcrumb + avatar menu, profile page redesign. `pnpm test` 11/11, `tsc -b` clean, build OK, lint only old hints. Browser as owner: desktop, 320/375, dark, keyboard in the menu, no console errors.
+- 2026-11-27 (run 10): managed SaaS model (Phase 7). Migration 4 + accounts function on dev; `pnpm test:db` 30/30, `pnpm test` 11/11, `tsc -b` clean, lint only old fast-refresh hints.
 - 2026-11-26 (run 9): DB review (indexes, RLS, function security); migration 3 applied to dev (user OK).
 - 2026-11-26 (run 8): profile page, record editing on 5 pages, project edit/billing/delete tested in the browser; Modal bug fixed; `pnpm test` 7/7, `pnpm test:db` 12/12, `tsc -b` clean, build OK.
 - 2026-11-26 (run 7): error + retry state tested with a faked 503 (tab only).

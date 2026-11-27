@@ -22,7 +22,8 @@ export function Modal({ open, title, onClose, children }: { open: boolean; title
       className="mb-0 mt-auto max-h-[92dvh] w-full max-w-none rounded-t-xl border border-line bg-surface p-0 text-text backdrop:bg-ink/50 sm:m-auto sm:w-[min(34rem,calc(100vw-2rem))] sm:rounded-lg"
     >
       {open && (
-        <div className="flex max-h-[92dvh] flex-col">
+        // 2px less than the dialog: its 1px border would otherwise add a second scrollbar.
+        <div className="flex max-h-[calc(92dvh-2px)] flex-col">
           <div className="flex items-center justify-between gap-4 border-b border-line px-5 py-3">
             <h2 id="modal-title" className="text-lg font-semibold">
               {title}

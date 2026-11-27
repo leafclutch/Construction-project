@@ -1,4 +1,5 @@
 import { fetchAll } from '../../lib/fetchAll'
+import { saveRecord } from '../../lib/outbox'
 import { supabase, type Tables } from '../../lib/supabase'
 import { unwrap, updateOne } from '../../lib/useAsyncData'
 
@@ -27,8 +28,9 @@ export function listLabour(projectId: string, filter: { date?: string; category?
   })
 }
 
+/** Saves now, or on the phone to upload later when there is no signal. */
 export const addLabour = (orgId: string, projectId: string, input: LabourInput) =>
-  unwrap(supabase.from('labour_entries').insert({ ...input, org_id: orgId, project_id: projectId }))
+  saveRecord({ table: 'labour_entries', orgId, projectId, row: input, summary: `${input.worker_count} × ${input.category}` })
 
 export const updateLabour = (id: string, input: LabourInput) =>
   updateOne(supabase.from('labour_entries').update(input).eq('id', id).select('id'))

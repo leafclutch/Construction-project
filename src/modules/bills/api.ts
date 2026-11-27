@@ -1,5 +1,6 @@
 import { fetchAll } from '../../lib/fetchAll'
-import { removeFile, uploadFile } from '../../lib/files'
+import { removeFile } from '../../lib/files'
+import { saveRecord } from '../../lib/outbox'
 import { supabase, type Tables } from '../../lib/supabase'
 import { unwrap, updateOne } from '../../lib/useAsyncData'
 
@@ -17,15 +18,16 @@ export const listBills = (projectId: string) =>
       .range(from, to),
   )
 
-export async function addBill(orgId: string, projectId: string, input: VatBillInput, file: File | null) {
-  const file_path = file ? await uploadFile('receipts', orgId, projectId, file) : null
-  try {
-    await unwrap(supabase.from('vat_bills').insert({ ...input, file_path, org_id: orgId, project_id: projectId }))
-  } catch (e) {
-    await removeFile('receipts', file_path).catch(() => {})
-    throw e
-  }
-}
+/** Saves now (bill copy first), or on the phone to upload later when there is no signal. */
+export const addBill = (orgId: string, projectId: string, input: VatBillInput, file: File | null) =>
+  saveRecord({
+    table: 'vat_bills',
+    orgId,
+    projectId,
+    row: input,
+    summary: `Bill ${input.bill_no} · ${input.supplier_name}`,
+    file: { bucket: 'receipts', column: 'file_path', file },
+  })
 
 /** Edits the bill details; the bill copy stays as it is. */
 export const updateBill = (id: string, input: VatBillInput) =>

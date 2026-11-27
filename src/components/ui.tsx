@@ -124,9 +124,10 @@ export function EmptyState({ icon, title, children }: { icon: ReactNode; title: 
 
 export function PageHeader({ title, description, actions }: { title: string; description?: string; actions?: ReactNode }) {
   return (
-    <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
+    // A title-only header is empty on phones (the app bar shows the title): "page-header-bare" drops its gap there.
+    <header className={cx('mb-6 flex flex-wrap items-end justify-between gap-4', !description && !actions && 'page-header-bare')}>
       <div className="min-w-0">
-        <h1 className="text-2xl font-bold tracking-tight sm:text-[1.75rem]" style={{ fontVariationSettings: "'wdth' 88" }}>
+        <h1 className="page-title text-2xl font-bold tracking-tight sm:text-[1.75rem]" style={{ fontVariationSettings: "'wdth' 88" }}>
           {title}
         </h1>
         {description && <p className="mt-1 text-sm text-muted">{description}</p>}

@@ -66,10 +66,20 @@
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;
+    /* App feel on phones: no grey flash on tap, no double-tap zoom delay. */
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
   body {
     @apply bg-bg font-sans text-text antialiased;
     font-variation-settings: 'wdth' 100;
+    /* No browser pull-to-reload or bounce; the app has its own pull to refresh. */
+    overscroll-behavior-y: none;
+  }
+  /* Page changes from tabs and the back arrow cross-fade (View Transitions). */
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 160ms;
   }
   :focus-visible {
     outline: 2px solid var(--focus);
