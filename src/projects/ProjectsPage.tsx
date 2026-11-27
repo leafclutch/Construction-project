@@ -1,6 +1,6 @@
 import { HardHat, Plus } from 'lucide-react'
 import { useState } from 'react'
-import { Link, Navigate, useNavigate } from 'react-router'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router'
 import { useAuth } from '../auth/AuthProvider'
 import { Modal } from '../components/Modal'
 import { useToast } from '../components/toast'
@@ -13,8 +13,9 @@ import { useProjects } from './ProjectsProvider'
 /** "/" opens the current project (last opened, or the only one), else the list. */
 export function HomeRedirect() {
   const { projects, current, error } = useProjects()
+  const { search } = useLocation()
   if (!projects) return error ? <Navigate to="/projects" replace /> : <Skeleton className="h-56 w-full" />
-  return <Navigate to={current ? `/p/${current.id}` : '/projects'} replace />
+  return <Navigate to={`${current ? `/p/${current.id}` : '/projects'}${search}`} replace />
 }
 
 export function ProjectsPage() {

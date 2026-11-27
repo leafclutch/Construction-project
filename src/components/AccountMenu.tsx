@@ -1,9 +1,13 @@
-import { LogOut, Moon, Sun, UserRound } from 'lucide-react'
+import { Download, LogOut, Moon, Sun, UserRound } from 'lucide-react'
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import { Link } from 'react-router'
 import { currentTheme, setTheme } from '../app/theme'
 import { useAuth } from '../auth/AuthProvider'
 import { APP_NAME, ROLE_LABEL } from '../lib/brand'
+import { useInstall } from '../lib/install'
+import { listOutbox } from '../lib/outbox'
+import { ConfirmDialog } from './ConfirmDialog'
+import { IosInstallSteps } from './InstallPrompt'
 import { cx } from './ui'
 
 function initials(name: string) {
@@ -38,6 +42,9 @@ export function AccountMenu({ profilePath }: { profilePath: string }) {
   const panel = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
   const [theme, setThemeState] = useState(currentTheme)
+  const [unsent, setUnsent] = useState(0)
+  const install = useInstall()
+  const [iosSteps, setIosSteps] = useState(false)
   const menuId = useId()
   const email = session?.user.email ?? ''
 
@@ -117,14 +124,51 @@ export function AccountMenu({ profilePath }: { profilePath: string }) {
             {theme === 'dark' ? <Sun className="size-4 text-muted" aria-hidden /> : <Moon className="size-4 text-muted" aria-hidden />}
             {theme === 'dark' ? 'Light mode' : 'Dark mode'}
           </button>
+          {(install.canPrompt || install.iosSteps) && (
+            <button
+              role="menuitem"
+              type="button"
+              className={item}
+              onClick={() => {
+                hide()
+                if (install.canPrompt) void install.prompt()
+                else setIosSteps(true)
+              }}
+            >
+              <Download className="size-4 text-muted" aria-hidden />
+              Install app
+            </button>
+          )}
         </div>
         <div className="border-t border-line p-1">
-          <button role="menuitem" type="button" onClick={() => void signOut()} className={item}>
+          <button
+            role="menuitem"
+            type="button"
+            className={item}
+            onClick={async () => {
+              // Entries saved without signal live only on this phone: warn before deleting them.
+              const waiting = (await listOutbox()).length
+              hide()
+              if (waiting) setUnsent(waiting)
+              else void signOut()
+            }}
+          >
             <LogOut className="size-4 text-muted" aria-hidden />
             Log out
           </button>
         </div>
       </div>
+
+      <IosInstallSteps open={iosSteps} onClose={() => setIosSteps(false)} />
+      <ConfirmDialog
+        open={unsent > 0}
+        title={`${unsent} ${unsent === 1 ? 'entry is' : 'entries are'} not uploaded yet`}
+        confirmLabel="Log out and delete them"
+        onClose={() => setUnsent(0)}
+        onConfirm={signOut}
+      >
+        They were saved on this phone without signal. Logging out deletes them. Connect to the internet first so they upload.
+      </ConfirmDialog>
     </>
   )
 }

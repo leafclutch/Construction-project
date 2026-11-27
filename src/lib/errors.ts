@@ -1,5 +1,12 @@
 type MaybeError = { code?: string; message?: string; status?: number } | null | undefined
 
+/** No signal, or the request never reached the server (as opposed to the server saying no). */
+export function isNetworkError(error: unknown): boolean {
+  if (typeof navigator !== 'undefined' && !navigator.onLine) return true
+  const message = String((error as MaybeError)?.message ?? error ?? '')
+  return /failed to fetch|networkerror|load failed|fetch failed|network request failed/i.test(message)
+}
+
 /** Turns Supabase/Postgres/network errors into one sentence a user can act on. */
 export function getErrorMessage(error: unknown): string {
   const e = error as MaybeError
@@ -21,6 +28,12 @@ export function getErrorMessage(error: unknown): string {
       return e.message ?? 'Not found.'
     case 'invalid_credentials':
       return 'Email or password is wrong.'
+    case 'push_denied':
+      return 'Notifications are blocked for this app. Allow them in the phone or browser settings, then try again.'
+    case 'push_service':
+      return 'This browser could not turn on notifications. In Brave, allow "Google services for push messaging" in privacy settings, or use Chrome.'
+    case 'push_unavailable':
+      return 'Notifications work in the installed app. Install it first, then turn this on.'
     case 'email_exists':
       return 'This email already has an account. Use a different email.'
     case 'forbidden':

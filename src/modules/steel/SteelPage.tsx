@@ -2,25 +2,23 @@ import { Plus, Ruler } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { Ledger } from '../../components/Ledger'
 import { Modal } from '../../components/Modal'
+import { PendingEntries } from '../../components/PendingEntries'
 import { DeleteRowButton, EditRowButton, LedgerSkeleton, PrintButton, PrintHeader } from '../../components/records'
 import { useToast } from '../../components/toast'
 import { Button, cx, EmptyState, ErrorState, Field, FormError, Input, PageHeader, Panel, Select } from '../../components/ui'
-import { fetchAll } from '../../lib/fetchAll'
 import { calc, formatNumber } from '../../lib/format'
-import { supabase, type Tables } from '../../lib/supabase'
+import { savedText } from '../../lib/outbox'
+import { supabase } from '../../lib/supabase'
 import { unwrap, updateOne, useAsyncData } from '../../lib/useAsyncData'
 import { useProject } from '../../projects/ProjectLayout'
+import { addBbs, listBbs, type BbsItem, type SteelInput } from './api'
 
-type BbsItem = Tables<'bbs_items'>
 // Must match the CHECK constraint on bbs_items.bar_dia_mm.
 const DIAMETERS = [6, 8, 10, 12, 16, 20, 25, 28, 32, 36, 40]
 
-const listBbs = (projectId: string) =>
-  fetchAll<BbsItem>((from, to) => supabase.from('bbs_items').select('*').eq('project_id', projectId).order('created_at').range(from, to))
-
 export function SteelPage() {
   const { project, can } = useProject()
-  const { data, error, reload } = useAsyncData(() => listBbs(project.id), [project.id])
+  const { data, error, reload } = useAsyncData(() => listBbs(project.id), [project.id], 'steel')
   const [editing, setEditing] = useState<BbsItem | null>(null)
   const toast = useToast()
 
@@ -37,9 +35,9 @@ export function SteelPage() {
         <Panel className="no-print mb-6 p-4 sm:p-5">
           <SteelForm
             onSave={async (input) => {
-              await unwrap(supabase.from('bbs_items').insert({ ...input, org_id: project.org_id, project_id: project.id }))
+              const { queued } = await addBbs(project.org_id, project.id, input)
               reload()
-              toast('Steel row added')
+              toast(savedText(queued, 'Steel row added'))
             }}
           />
         </Panel>
@@ -64,6 +62,8 @@ export function SteelPage() {
           </ul>
         )}
       </section>
+
+      <PendingEntries projectId={project.id} table="bbs_items" />
 
       {error && !data ? (
         <ErrorState error={error} onRetry={reload} />
@@ -135,9 +135,8 @@ export function SteelPage() {
   )
 }
 
-type SteelInput = Pick<BbsItem, 'member' | 'bar_dia_mm' | 'bar_count' | 'cut_length_m'>
 
-function SteelForm({ initial, onSave }: { initial?: BbsItem; onSave: (input: SteelInput) => Promise<void> }) {
+export function SteelForm({ initial, onSave }: { initial?: BbsItem; onSave: (input: SteelInput) => Promise<void> }) {
   const [member, setMember] = useState(initial?.member ?? '')
   const [dia, setDia] = useState(initial?.bar_dia_mm ?? 12)
   const [bars, setBars] = useState(initial ? String(initial.bar_count) : '')

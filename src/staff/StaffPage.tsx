@@ -23,7 +23,7 @@ const nameOf = (m: StaffMember) => m.profiles?.full_name || m.profiles?.email ||
 export function StaffPage() {
   const { membership, isAdmin, session } = useAuth()
   const orgId = membership!.orgId
-  const staff = useAsyncData(() => Promise.all([listStaff(orgId), listAssignments(orgId)]), [orgId])
+  const staff = useAsyncData(() => Promise.all([listStaff(orgId), listAssignments(orgId)]), [orgId], 'staff')
   const { projects } = useProjects()
   const [params, setParams] = useSearchParams()
   const q = params.get('q') ?? ''

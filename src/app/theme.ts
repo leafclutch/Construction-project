@@ -8,4 +8,6 @@ export function currentTheme(): Theme {
 export function setTheme(theme: Theme) {
   localStorage.setItem(KEY, theme)
   document.documentElement.dataset.theme = theme
+  // Phone status bar matches the app bar (--surface).
+  document.querySelector<HTMLMetaElement>('meta[name=theme-color]')?.setAttribute('content', theme === 'dark' ? '#19202c' : '#ffffff')
 }

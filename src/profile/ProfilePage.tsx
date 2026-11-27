@@ -1,15 +1,17 @@
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { useNavigate } from 'react-router'
 import { useAuth } from '../auth/AuthProvider'
 import { Avatar, useRoleLine } from '../components/AccountMenu'
 import { useToast } from '../components/toast'
 import { Button, Field, FormError, Input, PageHeader, Panel } from '../components/ui'
 import { ROLE_LABEL } from '../lib/brand'
+import { isInstalled, isIos } from '../lib/install'
+import { currentSubscription, disablePush, enablePush, pushSupported } from '../lib/push'
 import { supabase } from '../lib/supabase'
 import { unwrap } from '../lib/useAsyncData'
 
 export function ProfilePage() {
-  const { session, memberships, membership, selectOrg, fullName, refresh } = useAuth()
+  const { session, memberships, membership, selectOrg, fullName, refresh, isAdmin } = useAuth()
   const roleLine = useRoleLine()
   const navigate = useNavigate()
   const email = session!.user.email ?? ''
@@ -36,6 +38,12 @@ export function ProfilePage() {
             <PasswordForm />
           </Section>
         </div>
+
+        {isAdmin && (
+          <Section title="Notifications on this phone" description="A message when your site staff add labour, deliveries, bills or steel.">
+            <PushToggle />
+          </Section>
+        )}
 
         {memberships && memberships.length > 1 && (
           <Section title="Your firms" description="Switch to work in another firm.">
@@ -141,5 +149,55 @@ function PasswordForm() {
         Change password
       </Button>
     </form>
+  )
+}
+
+function PushToggle() {
+  const [on, setOn] = useState<boolean | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<unknown>(null)
+  const toast = useToast()
+
+  useEffect(() => {
+    void currentSubscription().then((s) => setOn(Boolean(s)))
+  }, [])
+
+  if (!pushSupported())
+    return <p className="text-sm text-muted">{isIos() && !isInstalled() ? 'On iPhone, install the app first (Share → Add to Home Screen), then turn this on there.' : 'This browser cannot show notifications.'}</p>
+
+  async function toggle() {
+    setBusy(true)
+    setError(null)
+    try {
+      if (on) await disablePush()
+      else await enablePush()
+      setOn(!on)
+      toast(on ? 'Notifications are off for this phone' : 'Notifications are on for this phone')
+    } catch (e) {
+      setError(e)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="grid gap-3">
+      <label className="flex min-h-11 cursor-pointer items-center justify-between gap-4">
+        <span className="text-sm font-medium">{on ? 'On' : 'Off'}</span>
+        <input
+          type="checkbox"
+          role="switch"
+          checked={Boolean(on)}
+          disabled={on === null || busy}
+          onChange={() => void toggle()}
+          className="peer sr-only"
+        />
+        <span
+          aria-hidden
+          className="relative h-7 w-12 shrink-0 rounded-full bg-line transition-colors peer-checked:bg-ledger peer-focus-visible:outline-2 peer-focus-visible:outline-focus peer-disabled:opacity-50 after:absolute after:left-1 after:top-1 after:size-5 after:rounded-full after:bg-surface after:shadow after:transition-transform peer-checked:after:translate-x-5"
+        />
+      </label>
+      <FormError error={error} />
+    </div>
   )
 }

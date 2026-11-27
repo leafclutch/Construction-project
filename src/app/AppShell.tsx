@@ -1,6 +1,7 @@
 import {
   Building2,
   Check,
+  ArrowLeft,
   ChevronRight,
   ChevronsUpDown,
   Eye,
@@ -10,6 +11,7 @@ import {
   House,
   LayoutList,
   Menu,
+  Plus,
   Ruler,
   Search,
   Truck,
@@ -17,16 +19,24 @@ import {
   UsersRound,
   type LucideIcon,
 } from 'lucide-react'
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
-import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router'
+import { lazy, Suspense, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { Link, NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router'
 import { useAuth } from '../auth/AuthProvider'
 import { AccountMenu } from '../components/AccountMenu'
 import { BrandMark } from '../components/BrandMark'
+import { AppTips } from '../components/InstallPrompt'
+import { OfflineBar } from '../components/OfflineBar'
+import { PullToRefresh } from '../components/PullToRefresh'
+import type { QuickKind } from '../components/QuickAdd'
 import { cx, Skeleton } from '../components/ui'
 import { APP_NAME } from '../lib/brand'
 import type { ModuleKey } from '../lib/permissions'
 import type { Project } from '../projects/api'
 import { ProjectsProvider, useCanOn, useProjects } from '../projects/ProjectsProvider'
+
+// The quick add sheet pulls in four record forms: load it on first tap.
+const QuickAdd = lazy(() => import('../components/QuickAdd'))
+const QUICK_KINDS: QuickKind[] = ['labour', 'materials', 'bills', 'steel']
 
 type NavItem = { to: string; label: string; short?: string; icon: LucideIcon; module?: ModuleKey }
 
@@ -77,6 +87,21 @@ function Shell() {
   const setDrawerOpen = (open: boolean) => setDrawerPath(open ? location.pathname : null)
   const { current } = useProjects()
   const { membership } = useAuth()
+  const can = useCanOn(current)
+  const addKinds = QUICK_KINDS.filter((k) => can(`${k}.add`))
+  const [quick, setQuick] = useState<QuickKind | 'menu' | null>(null)
+
+  // Home-screen shortcuts open "/?add=labour": start the quick add for that record.
+  const [params, setParams] = useSearchParams()
+  const addParam = params.get('add')
+  useEffect(() => {
+    if (!addParam || !current) return
+    // Opens the sheet once the project is known.
+    // eslint-disable-next-line react/set-state-in-effect
+    if ((addKinds as string[]).includes(addParam)) setQuick(addParam as QuickKind)
+    params.delete('add')
+    setParams(params, { replace: true })
+  }, [addParam, current?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[16rem_1fr] print:block">
@@ -93,24 +118,26 @@ function Shell() {
       </aside>
 
       <div className="min-w-0">
-        <header className="no-print sticky top-0 z-30 border-b border-line bg-surface/95 px-2 backdrop-blur sm:px-6 lg:px-10">
+        <header className="no-print sticky top-0 z-30 select-none border-b border-line bg-surface/95 px-2 pt-[env(safe-area-inset-top)] backdrop-blur sm:px-6 lg:px-10">
           <div className="mx-auto flex h-14 max-w-6xl items-center gap-1 sm:gap-2">
-            <button
-              type="button"
-              onClick={() => setDrawerOpen(true)}
-              aria-label="Open menu"
-              className="grid size-11 shrink-0 place-items-center rounded-md hover:bg-surface-2 sm:-ml-3 lg:hidden"
-            >
-              <Menu className="size-5" aria-hidden />
-            </button>
+            <AppBarTitle />
             <Breadcrumbs />
             <AccountMenu profilePath={membership?.readOnly ? '/platform/profile' : '/profile'} />
           </div>
         </header>
+        <div className="no-print sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-20">
+          <OfflineBar />
+        </div>
 
-        <main id="main" tabIndex={-1} className="min-w-0 outline-none px-4 pb-28 pt-5 sm:px-6 lg:px-10 lg:pb-12 lg:pt-6 print:p-0">
+        {/* Phones: the app bar shows the page title, so the page's own h1 is for screen readers only. */}
+        <main
+          id="main"
+          tabIndex={-1}
+          className="min-w-0 px-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-4 outline-none sm:px-6 lg:px-10 lg:pb-12 lg:pt-6 max-lg:[&_.page-title]:sr-only max-lg:[&_.page-header-bare]:mb-0 print:p-0"
+        >
           <div className="mx-auto max-w-6xl">
             <SupportBanner />
+            {/^\/(projects|p\/[^/]+)\/?$/.test(location.pathname) && <AppTips />}
             <Outlet />
           </div>
         </main>
@@ -118,7 +145,13 @@ function Shell() {
 
       {drawerOpen && <Drawer onClose={() => setDrawerOpen(false)} />}
 
-      {current && <BottomTabs project={current} onMore={() => setDrawerOpen(true)} />}
+      <BottomTabs project={current} onMore={() => setDrawerOpen(true)} onAdd={current && addKinds.length ? () => setQuick('menu') : undefined} />
+      <PullToRefresh />
+      {quick && current && (
+        <Suspense fallback={null}>
+          <QuickAdd project={current} kinds={addKinds} start={quick} onClose={() => setQuick(null)} />
+        </Suspense>
+      )}
     </div>
   )
 }
@@ -201,7 +234,7 @@ function Sidebar() {
               <ul className="flex flex-col gap-0.5">
                 {items.map((item) => (
                   <li key={item.to}>
-                    <NavLink to={`/p/${current.id}${item.to ? `/${item.to}` : ''}`} end className={linkClass}>
+                    <NavLink to={`/p/${current.id}${item.to ? `/${item.to}` : ''}`} end viewTransition className={linkClass}>
                       <item.icon className="size-[1.125rem] shrink-0" aria-hidden />
                       {item.label}
                     </NavLink>
@@ -217,14 +250,14 @@ function Sidebar() {
         <p className="px-3 pb-1 text-xs font-medium text-ink-muted">Firm</p>
         <ul className="flex flex-col gap-0.5">
           <li>
-            <NavLink to="/projects" end className={linkClass}>
+            <NavLink to="/projects" end viewTransition className={linkClass}>
               <HardHat className="size-[1.125rem]" aria-hidden />
               {isAdmin || membership?.readOnly ? 'All projects' : 'My projects'}
             </NavLink>
           </li>
           {(isAdmin || membership?.readOnly) && (
             <li>
-              <NavLink to="/staff" className={linkClass}>
+              <NavLink to="/staff" viewTransition className={linkClass}>
                 <Users className="size-[1.125rem]" aria-hidden />
                 Staff
               </NavLink>
@@ -242,18 +275,44 @@ const SECTION_LABEL: Record<string, string> = {
   team: 'Team',
 }
 
-/** Home › Project › Section, from the URL. Home is the projects list. */
-function Breadcrumbs() {
+/** Project › Section from the URL (Home, the projects list, comes before it). */
+function useTrail() {
   const { pathname } = useLocation()
   const { projects } = useProjects()
   const [, first, id, section] = pathname.split('/')
-  const trail: { label: ReactNode; to?: string }[] = []
+  const trail: { label: ReactNode; to: string }[] = []
   if (first === 'p') {
     const name = projects?.find((p) => p.id === id)?.name
-    trail.push({ label: name ?? (projects ? 'Project' : <Skeleton className="h-4 w-28" />), to: section ? `/p/${id}` : undefined })
-    if (section) trail.push({ label: SECTION_LABEL[section] ?? section })
-  } else if (first === 'staff') trail.push({ label: 'Staff' })
-  else if (first === 'profile') trail.push({ label: 'My profile' })
+    trail.push({ label: name ?? (projects ? 'Project' : <Skeleton className="h-4 w-28" />), to: `/p/${id}` })
+    if (section) trail.push({ label: SECTION_LABEL[section] ?? section, to: pathname })
+  } else if (first === 'staff') trail.push({ label: 'Staff', to: '/staff' })
+  else if (first === 'profile') trail.push({ label: 'My profile', to: '/profile' })
+  return trail
+}
+
+/** Phones: back to the parent page, and the page title (like a native app bar). */
+function AppBarTitle() {
+  const trail = useTrail()
+  const title = trail.at(-1)
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-1 lg:hidden">
+      {title ? (
+        <Link to={trail.at(-2)?.to ?? '/projects'} viewTransition aria-label="Back" className="-ml-1 grid size-11 shrink-0 place-items-center rounded-full active:bg-surface-2">
+          <ArrowLeft className="size-5" aria-hidden />
+        </Link>
+      ) : (
+        <BrandMark className="ml-2 mr-1.5 size-7 shrink-0" />
+      )}
+      <h2 className="truncate text-[1.0625rem] font-semibold" aria-hidden>
+        {title?.label ?? 'Projects'}
+      </h2>
+    </div>
+  )
+}
+
+/** Desktop: Home › Project › Section. Home is the projects list. */
+function Breadcrumbs() {
+  const trail = useTrail()
 
   const home = (
     <>
@@ -262,7 +321,7 @@ function Breadcrumbs() {
     </>
   )
   return (
-    <nav aria-label="Breadcrumb" className="min-w-0 flex-1">
+    <nav aria-label="Breadcrumb" className="hidden min-w-0 flex-1 lg:block">
       <ol className="flex min-w-0 items-center gap-1.5 text-sm">
         <li className="shrink-0">
           {trail.length ? (
@@ -278,7 +337,7 @@ function Breadcrumbs() {
         {trail.map((c, i) => (
           <li key={i} className={cx('flex items-center gap-1.5', i === trail.length - 1 && trail.length > 1 ? 'shrink-0' : 'min-w-0')}>
             <ChevronRight className="size-3.5 shrink-0 text-muted" aria-hidden />
-            {c.to ? (
+            {i < trail.length - 1 ? (
               <Link to={c.to} className="flex min-h-11 min-w-0 items-center text-muted hover:text-text">
                 <span className="truncate">{c.label}</span>
               </Link>
@@ -407,39 +466,61 @@ function ProjectSwitcher() {
   )
 }
 
-function BottomTabs({ project, onMore }: { project: Project; onMore: () => void }) {
+type Tab = { to: string; label: string; icon: LucideIcon; end?: boolean }
+
+/**
+ * Phones: the app's tab bar on every page. With a project: Hub and the first modules this
+ * person can open, the + (quick add) in the middle, and More (the full menu).
+ */
+function BottomTabs({ project, onMore, onAdd }: { project: Project | undefined; onMore: () => void; onAdd?: () => void }) {
   const groups = useProjectNav(project)
-  // Hub plus the first three modules this person can open; everything else is under More.
-  const tabs = groups
-    .flatMap((g) => g.items)
-    .filter((i) => i.to !== 'team')
-    .slice(0, 4)
+  const { isAdmin, membership } = useAuth()
+  const tabs: Tab[] = project
+    ? groups
+        .flatMap((g) => g.items)
+        .filter((i) => i.to !== 'team')
+        .slice(0, onAdd ? 3 : 4)
+        .map((i) => ({ to: `/p/${project.id}${i.to ? `/${i.to}` : ''}`, label: i.short ?? i.label, icon: i.icon, end: true }))
+    : [
+        { to: '/projects', label: 'Projects', icon: HardHat },
+        ...(isAdmin || membership?.readOnly ? [{ to: '/staff', label: 'Staff', icon: Users }] : []),
+      ]
+  const cell = 'flex min-h-14 flex-col items-center justify-center gap-0.5 text-[0.6875rem] font-medium'
+  const links = tabs.map((t) => (
+    <NavLink key={t.to} to={t.to} end={t.end} viewTransition className={({ isActive }) => cx(cell, isActive ? 'text-text' : 'text-muted')}>
+      {({ isActive }) => (
+        <>
+          <span className={cx('grid h-7 w-12 place-items-center rounded-full transition-colors', isActive && 'bg-hivis text-hivis-ink')}>
+            <t.icon className="size-[1.125rem]" aria-hidden />
+          </span>
+          {t.label}
+        </>
+      )}
+    </NavLink>
+  ))
+  if (onAdd)
+    links.splice(
+      Math.min(2, links.length),
+      0,
+      <div key="add" className="flex justify-center">
+        <button
+          type="button"
+          onClick={onAdd}
+          aria-label="Add a record"
+          className="-mt-5 grid size-14 place-items-center rounded-full bg-hivis text-hivis-ink shadow-lg ring-4 ring-surface transition-transform active:scale-95"
+        >
+          <Plus className="size-7" strokeWidth={2.5} aria-hidden />
+        </button>
+      </div>,
+    )
   return (
     <nav
-      aria-label="Project"
-      style={{ gridTemplateColumns: `repeat(${tabs.length + 1}, minmax(0, 1fr))` }}
-      className="no-print fixed inset-x-0 bottom-0 z-30 grid border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] lg:hidden"
+      aria-label="App"
+      style={{ gridTemplateColumns: `repeat(${links.length + 1}, minmax(0, 1fr))` }}
+      className="no-print fixed inset-x-0 bottom-0 z-30 grid select-none border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] lg:hidden"
     >
-      {tabs.map((t) => (
-        <NavLink
-          key={t.to}
-          to={`/p/${project.id}${t.to ? `/${t.to}` : ''}`}
-          end
-          className={({ isActive }) =>
-            cx('flex min-h-14 flex-col items-center justify-center gap-0.5 text-[0.6875rem] font-medium', isActive ? 'text-text' : 'text-muted')
-          }
-        >
-          {({ isActive }) => (
-            <>
-              <span className={cx('grid h-7 w-12 place-items-center rounded-full', isActive && 'bg-hivis text-hivis-ink')}>
-                <t.icon className="size-[1.125rem]" aria-hidden />
-              </span>
-              {t.short ?? t.label}
-            </>
-          )}
-        </NavLink>
-      ))}
-      <button type="button" onClick={onMore} className="flex min-h-14 flex-col items-center justify-center gap-0.5 text-[0.6875rem] font-medium text-muted">
+      {links}
+      <button type="button" onClick={onMore} className={cx(cell, 'text-muted')}>
         <span className="grid h-7 w-12 place-items-center">
           <Menu className="size-[1.125rem]" aria-hidden />
         </span>

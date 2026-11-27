@@ -24,7 +24,7 @@ function fileSize(bytes: number) {
 
 export function DrawingsPage() {
   const { project, can } = useProject()
-  const { data, error, reload } = useAsyncData(() => listDrawings(project.id), [project.id])
+  const { data, error, reload } = useAsyncData(() => listDrawings(project.id), [project.id], 'drawings')
   const [params, setParams] = useSearchParams()
   const category = (params.get('category') ?? '') as Category | ''
   const [uploading, setUploading] = useState(false)
@@ -187,7 +187,7 @@ function DrawingForm({ defaultCategory, onSave }: { defaultCategory: Category; o
         )}
       </Field>
       <Field label="File" hint="PDF, PNG, JPG or WEBP up to 50 MB.">
-        {(id) => <FilePicker id={id} name="file" accept="application/pdf,image/png,image/jpeg,image/webp" maxBytes={MAX_DRAWING_BYTES} label="Choose drawing file" />}
+        {(id) => <FilePicker id={id} name="file" accept="application/pdf,image/png,image/jpeg,image/webp" maxBytes={MAX_DRAWING_BYTES} />}
       </Field>
       <FormError error={error} messages={{ no_file: 'Choose a file to upload.' }} />
       <Button type="submit" busy={busy} className="self-end">

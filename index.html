@@ -4,7 +4,11 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#1c2540" />
+    <meta name="theme-color" content="#ffffff" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Thekka" />
     <meta name="description" content="Site records for thekedars: labour, materials, VAT bills, BOQ, steel and drawings." />
     <title>Thekka</title>
     <script>
@@ -13,6 +17,8 @@
         var t = localStorage.getItem('ns.theme')
         if (!t) t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
         document.documentElement.dataset.theme = t
+        // Status bar colour = the app bar (surface) colour. Kept in step by src/app/theme.ts.
+        document.querySelector('meta[name=theme-color]').content = t === 'dark' ? '#19202c' : '#ffffff'
       } catch (e) {}
     </script>
   </head>

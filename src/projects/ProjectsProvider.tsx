@@ -21,7 +21,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   const { membership, session } = useAuth()
   const orgId = membership!.orgId
   const userId = session!.user.id
-  const { data, error, loading, reload } = useAsyncData(() => listProjects(orgId, userId), [orgId, userId])
+  const { data, error, loading, reload } = useAsyncData(() => listProjects(orgId, userId), [orgId, userId], 'projects')
   const routeId = useMatch('/p/:projectId/*')?.params.projectId
   const [lastId, setLastId] = useState(() => localStorage.getItem(LAST_PROJECT))
 

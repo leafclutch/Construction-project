@@ -16,7 +16,7 @@ import { useProject } from './ProjectLayout'
 export function SiteHubPage() {
   const { project, reloadProject, can } = useProject()
   const { isAdmin } = useAuth()
-  const summary = useAsyncData(() => getProjectSummary(project.id), [project.id])
+  const summary = useAsyncData(() => getProjectSummary(project.id), [project.id], 'summary')
   const [dialog, setDialog] = useState<'progress' | 'edit' | 'delete' | null>(null)
   const navigate = useNavigate()
   const toast = useToast()

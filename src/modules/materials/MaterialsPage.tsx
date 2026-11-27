@@ -3,12 +3,14 @@ import { useState, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router'
 import { Ledger } from '../../components/Ledger'
 import { Modal } from '../../components/Modal'
+import { PendingEntries } from '../../components/PendingEntries'
 import { DeleteRowButton, EditRowButton, FileLink, FilePicker, LedgerSkeleton, PrintButton, PrintHeader, StatStrip } from '../../components/records'
 import { useToast } from '../../components/toast'
 import { Button, EmptyState, ErrorState, Field, FormError, Input, PageHeader, Panel, Select } from '../../components/ui'
 import { MAX_RECEIPT_BYTES } from '../../lib/files'
 import { formatDate, formatNumber, todayISO } from '../../lib/format'
 import { useAsyncData } from '../../lib/useAsyncData'
+import { savedText } from '../../lib/outbox'
 import { useProject } from '../../projects/ProjectLayout'
 import { addMaterial, deleteMaterial, listMaterials, MATERIALS, UNITS, updateMaterial, type MaterialEntry, type MaterialInput } from './api'
 
@@ -16,7 +18,7 @@ export function MaterialsPage() {
   const { project, can } = useProject()
   const [params, setParams] = useSearchParams()
   const material = params.get('material') ?? ''
-  const { data, error, reload } = useAsyncData(() => listMaterials(project.id, material || undefined), [project.id, material])
+  const { data, error, reload } = useAsyncData(() => listMaterials(project.id, material || undefined), [project.id, material], 'materials')
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState<MaterialEntry | null>(null)
   const toast = useToast()
@@ -68,6 +70,8 @@ export function MaterialsPage() {
           )}
         </Field>
       </div>
+
+      <PendingEntries projectId={project.id} table="material_entries" />
 
       {error && !data ? (
         <ErrorState error={error} onRetry={reload} />
@@ -124,10 +128,10 @@ export function MaterialsPage() {
       <Modal open={adding} title="Add delivery" onClose={() => setAdding(false)}>
         <MaterialForm
           onSave={async (input, file) => {
-            await addMaterial(project.org_id, project.id, input, file)
+            const { queued } = await addMaterial(project.org_id, project.id, input, file)
             reload()
             setAdding(false)
-            toast('Delivery added')
+            toast(savedText(queued, 'Delivery added'))
           }}
         />
       </Modal>
@@ -150,7 +154,7 @@ export function MaterialsPage() {
   )
 }
 
-function MaterialForm({ initial, onSave }: { initial?: MaterialEntry; onSave: (input: MaterialInput, file: File | null) => Promise<void> }) {
+export function MaterialForm({ initial, onSave }: { initial?: MaterialEntry; onSave: (input: MaterialInput, file: File | null) => Promise<void> }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>(null)
 
@@ -208,7 +212,7 @@ function MaterialForm({ initial, onSave }: { initial?: MaterialEntry; onSave: (i
       </Field>
       {!initial && (
         <Field label="Challan photo" className="sm:col-span-2" hint="Optional. Photo or PDF up to 10 MB.">
-          {(id) => <FilePicker id={id} name="challan" accept="image/*,application/pdf" maxBytes={MAX_RECEIPT_BYTES} label="Take photo or choose file" />}
+          {(id) => <FilePicker id={id} name="challan" accept="image/*,application/pdf" maxBytes={MAX_RECEIPT_BYTES} photo />}
         </Field>
       )}
       <div className="flex flex-col gap-3 sm:col-span-2">

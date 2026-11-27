@@ -1,5 +1,9 @@
 import type { Session } from '@supabase/supabase-js'
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
+import { isNetworkError } from '../lib/errors'
+import { clearCache, setCacheUser } from '../lib/offlineCache'
+import { clearOutbox, setOutboxUser } from '../lib/outbox'
+import { disablePush } from '../lib/push'
 import { supabase, type Enums } from '../lib/supabase'
 
 export type Membership = {
@@ -38,6 +42,7 @@ type AuthState = {
 const AuthContext = createContext<AuthState | null>(null)
 const ORG_KEY = 'ns.org'
 const VIEW_KEY = 'ns.view'
+const authKey = (userId: string) => `ns.auth.${userId}`
 
 function readView(): { id: string; name: string } | null {
   try {
@@ -70,8 +75,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       supabase.from('platform_admins').select('user_id').eq('user_id', userId).maybeSingle(),
     ])
     const error = memberships.error ?? profile.error ?? platform.error
+    // No signal: open with what this person had last time (their firm, role, name).
+    if (error && isNetworkError(error)) {
+      const saved = localStorage.getItem(authKey(userId))
+      if (saved) {
+        setLoadError(null)
+        setLoaded(JSON.parse(saved))
+        return
+      }
+    }
     setLoadError(error)
-    setLoaded({
+    const next: Loaded = {
       userId,
       list: (memberships.data ?? []).map((m) => ({
         orgId: m.org_id,
@@ -83,7 +97,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       fullName: profile.data?.full_name ?? null,
       mustChangePassword: profile.data?.must_change_password ?? false,
       platformAdmin: Boolean(platform.data),
-    })
+    }
+    setLoaded(next)
+    if (!error) localStorage.setItem(authKey(userId), JSON.stringify(next))
+  }, [userId])
+
+  // Offline data and the outbox belong to whoever is signed in.
+  useEffect(() => {
+    setCacheUser(userId ?? null)
+    setOutboxUser(userId ?? null)
   }, [userId])
 
   useEffect(() => {
@@ -116,11 +138,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const signOut = useCallback(async () => {
+    if (userId) localStorage.removeItem(authKey(userId))
+    await disablePush().catch(() => undefined)
+    await clearOutbox()
+    await clearCache()
     await supabase.auth.signOut()
     for (const key of [ORG_KEY, VIEW_KEY]) localStorage.removeItem(key)
     setOrgId(null)
     setViewing(null)
-  }, [])
+  }, [userId])
 
   const value: AuthState = {
     session: session ?? null,

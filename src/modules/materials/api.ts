@@ -1,5 +1,6 @@
 import { fetchAll } from '../../lib/fetchAll'
-import { removeFile, uploadFile } from '../../lib/files'
+import { removeFile } from '../../lib/files'
+import { saveRecord } from '../../lib/outbox'
 import { supabase, type Tables } from '../../lib/supabase'
 import { unwrap, updateOne } from '../../lib/useAsyncData'
 
@@ -17,16 +18,16 @@ export function listMaterials(projectId: string, material?: string) {
   })
 }
 
-/** Uploads the challan photo first; removes it again if the row can't be saved. */
-export async function addMaterial(orgId: string, projectId: string, input: MaterialInput, challan: File | null) {
-  const challan_path = challan ? await uploadFile('receipts', orgId, projectId, challan) : null
-  try {
-    await unwrap(supabase.from('material_entries').insert({ ...input, challan_path, org_id: orgId, project_id: projectId }))
-  } catch (e) {
-    await removeFile('receipts', challan_path).catch(() => {})
-    throw e
-  }
-}
+/** Saves now (challan photo first), or on the phone to upload later when there is no signal. */
+export const addMaterial = (orgId: string, projectId: string, input: MaterialInput, challan: File | null) =>
+  saveRecord({
+    table: 'material_entries',
+    orgId,
+    projectId,
+    row: input,
+    summary: `${input.quantity} ${input.unit} ${input.material}`,
+    file: { bucket: 'receipts', column: 'challan_path', file: challan },
+  })
 
 /** Edits the text and number fields; the challan photo stays as it is. */
 export const updateMaterial = (id: string, input: MaterialInput) =>

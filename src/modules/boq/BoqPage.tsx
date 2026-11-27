@@ -23,7 +23,7 @@ const squash = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
 
 export function BoqPage() {
   const { project, can } = useProject()
-  const { data, error, reload } = useAsyncData(() => listBoq(project.id), [project.id])
+  const { data, error, reload } = useAsyncData(() => listBoq(project.id), [project.id], 'boq')
   const [params, setParams] = useSearchParams()
   const q = params.get('q') ?? ''
   const [adding, setAdding] = useState(false)

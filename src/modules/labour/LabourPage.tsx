@@ -3,11 +3,13 @@ import { useState, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router'
 import { Ledger } from '../../components/Ledger'
 import { Modal } from '../../components/Modal'
+import { PendingEntries } from '../../components/PendingEntries'
 import { DeleteRowButton, EditRowButton, LedgerSkeleton, PrintButton, PrintHeader, StatStrip } from '../../components/records'
 import { useToast } from '../../components/toast'
 import { Button, EmptyState, ErrorState, Field, FormError, Input, PageHeader, Panel, Select } from '../../components/ui'
 import { calc, formatDate, formatNPR, formatNumber, todayISO } from '../../lib/format'
 import { useAsyncData } from '../../lib/useAsyncData'
+import { savedText } from '../../lib/outbox'
 import { useProject } from '../../projects/ProjectLayout'
 import { addLabour, deleteLabour, LABOUR_CATEGORIES, listLabour, updateLabour, type LabourEntry, type LabourInput } from './api'
 
@@ -15,7 +17,7 @@ export function LabourPage() {
   const { project, can } = useProject()
   const [params, setParams] = useSearchParams()
   const filter = { date: params.get('date') ?? '', category: params.get('category') ?? '' }
-  const { data, error, reload } = useAsyncData(() => listLabour(project.id, filter), [project.id, filter.date, filter.category])
+  const { data, error, reload } = useAsyncData(() => listLabour(project.id, filter), [project.id, filter.date, filter.category], 'labour')
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState<LabourEntry | null>(null)
   const toast = useToast()
@@ -84,6 +86,8 @@ export function LabourPage() {
         )}
       </div>
 
+      <PendingEntries projectId={project.id} table="labour_entries" />
+
       {error && !data ? (
         <ErrorState error={error} onRetry={reload} />
       ) : (
@@ -140,9 +144,9 @@ export function LabourPage() {
       <Modal open={adding} title="Add labour" onClose={() => setAdding(false)}>
         <LabourForm
           onSave={async (input) => {
-            await addLabour(project.org_id, project.id, input)
+            const { queued } = await addLabour(project.org_id, project.id, input)
             reload()
-            toast('Labour added')
+            toast(savedText(queued, 'Labour added'))
           }}
           onDone={() => setAdding(false)}
         />
@@ -166,7 +170,7 @@ export function LabourPage() {
   )
 }
 
-function LabourForm({ initial, onSave, onDone }: { initial?: LabourEntry; onSave: (input: LabourInput) => Promise<void>; onDone: () => void }) {
+export function LabourForm({ initial, onSave, onDone }: { initial?: LabourEntry; onSave: (input: LabourInput) => Promise<void>; onDone: () => void }) {
   const [workers, setWorkers] = useState(initial ? String(initial.worker_count) : '')
   const [rate, setRate] = useState(initial ? String(initial.daily_rate) : '')
   const [busy, setBusy] = useState(false)

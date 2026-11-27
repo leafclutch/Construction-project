@@ -26,7 +26,7 @@ const nameOf = (m: TeamMember) => m.memberships?.profiles?.full_name || m.member
 export function ProjectTeamPage() {
   const { project } = useProject()
   const { isAdmin } = useAuth()
-  const team = useAsyncData(() => listProjectTeam(project.id), [project.id])
+  const team = useAsyncData(() => listProjectTeam(project.id), [project.id], 'team')
   const [dialog, setDialog] = useState<Dialog | null>(null)
   const toast = useToast()
 
