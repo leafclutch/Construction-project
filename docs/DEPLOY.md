@@ -12,19 +12,32 @@ Nothing here has been run yet. Each step needs the owner's go-ahead.
 pnpm exec supabase db push --db-url "<prod session pooler URL>" --dry-run
 pnpm exec supabase db push --db-url "<prod session pooler URL>"
 ```
-This creates every table, RLS policy, column grant, RPC and both storage buckets. Never run `supabase/seed.sql` or tests against prod.
+This creates every table, RLS policy, column grant and both storage buckets. Never run tests against prod.
 
-## 3. Auth settings (dashboard, not in migrations)
-- Authentication → URL Configuration: Site URL = the live domain; Redirect URLs = `https://<domain>/**`.
-- Authentication → Email: keep **Confirm email ON**.
-- Authentication → SMTP: connect a real email sender (Resend, SES, …). The built-in sender only allows a few mails per hour.
+## 3. Edge Function
+```bash
+pnpm exec supabase functions deploy accounts --remote=<prod ref> --no-verify-jwt --use-api
+```
+`--no-verify-jwt` is intended: the function checks the caller's login itself (works with the new JWT signing keys). It uses the project's own service key, which Supabase gives it automatically; nothing to configure.
+
+## 4. Auth settings (dashboard, not in migrations)
+- Authentication → Sign In / Providers → **turn off "Allow new users to sign up"**. Logins are created only by the accounts function.
 - Password minimum length: 8 (the app asks for 8).
+- No SMTP and no redirect URLs needed: the app never sends email.
 
-## 4. Hosting
+## 5. First super admin
+Create the user in the dashboard (Authentication → Users → Add user, "Auto confirm"), then in the SQL editor:
+```sql
+insert into public.platform_admins (user_id)
+select id from auth.users where email = '<their email>';
+```
+They log in and land on `/platform`, where they create firms.
+
+## 6. Hosting
 Any static host works (Vercel, Netlify, Cloudflare Pages).
 - Build command `pnpm build`, output folder `dist`.
 - Environment variables: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` from the **prod** project. Nothing else. Never the secret key.
 - SPA fallback: every path must serve `index.html` (Vercel/Netlify/Cloudflare do this with a one-line rewrite rule).
 
-## 5. Smoke test on prod
-Sign up → create firm → create project → add one row in each module (with a photo) → invite code → second account joins as site staff → staff cannot delete → print a page.
+## 7. Smoke test on prod
+Super admin creates a firm → owner logs in with the temporary password and sets their own → owner creates a project → owner adds a staff member to it with the "Store keeper" preset → staff logs in, sets a password, sees only that project and only Materials/Bills → add one row in each module (with a photo) as the owner → print a page. Delete the test firm afterwards.

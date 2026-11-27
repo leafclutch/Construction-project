@@ -6,7 +6,7 @@ Plan, checklist, test results and blockers: `docs/PLAN.md`. Keep it in sync with
 
 ## Stack (decided)
 - Vite + React 19 + TypeScript + Tailwind v4 + React Router. pnpm.
-- Supabase is the whole backend: Postgres (constraints, generated columns, RLS, RPCs), Auth (email + password), Storage. No custom server.
+- Supabase is the whole backend: Postgres (constraints, generated columns, RLS), Auth (email + password), Storage, and one Edge Function `accounts` (creating logins and resetting passwords needs the service key). No other server.
 - Lint: oxlint. Tests: Vitest — `pnpm test` (unit, `src/`), `pnpm test:db` (RLS integration against the dev project, `tests/`).
 
 ## Environments
@@ -16,12 +16,17 @@ Plan, checklist, test results and blockers: `docs/PLAN.md`. Keep it in sync with
 - Browser code may only use `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`. `SUPABASE_SECRET_KEY` is for tests/scripts only.
 
 ## Architecture rules
-- Tenant = `organizations` (a thekedar firm). Every business table has `org_id` + RLS via `private.is_member` / `private.is_admin`. Child tables FK `(project_id, org_id)` → `projects(id, org_id)` so rows can't point across tenants.
-- Roles: `owner` (signed up / created org), `admin`, `site_staff`. Staff can read everything in the org and add site records (material, labour, VAT bills, BBS); only owner/admin edit or delete, manage projects, drawings, BOQ and team.
+- Managed SaaS, no public signup and no emails. Leafclutch super admins (`platform_admins`) create firms + owner logins at `/platform`; owners/admins create staff logins. New logins get a temporary password and must set their own on first login (`profiles.must_change_password`). Resets are done by the owner (staff) or super admin (owners).
+- Tenant = `organizations` (a thekedar firm, `status` active/suspended). Every business table has `org_id`. Child tables FK `(project_id, org_id)` → `projects(id, org_id)` so rows can't point across tenants.
+- Roles: `owner`, `admin` see and do everything in their firm. `site_staff` see only projects they are in (`project_members`), with per-project permissions `<module>.view|add|edit|delete` (drawings: view|add|delete) and `money.view`. The list lives in `src/lib/permissions.ts` and the check constraint in migration 4; a unit test keeps them equal.
+- RLS: records use `private.can(org_id, project_id, '<perm>')`; every select also allows `private.is_platform_admin()` (support reads, never writes). `memberships.active = false` or a suspended firm cuts all access.
+- Money (contract, billed) lives in `project_finance`, readable only with `money.view`.
 - Money and quantity math (BOQ amount, wage, VAT 13%, steel D²/162) is done by generated columns in Postgres; the UI only previews it.
 - Storage: private buckets `drawings`, `receipts`; object path `<org_id>/<project_id>/<file>`; view through signed URLs.
 - Column-level grants (migration 2): clients may only write data columns. A new table or column needs an explicit `grant insert/update (cols)`, or writes fail with 42501.
-- Any new table: org_id, composite FK, RLS policies, column grants, and a case in `tests/rls.integration.test.ts`.
+- Any new table: org_id, composite FK, RLS policies, column grants, and a case in `tests/rls.integration.test.ts`. A new module also needs its permissions in both lists.
+- UI permissions: `useProject().can(perm)` inside project pages, `useCanOn(project)` elsewhere; row buttons take `module`. Hide what isn't allowed; the DB enforces it anyway.
+- Edge Function: `pnpm exec supabase functions deploy accounts --remote=<ref> --no-verify-jwt --use-api` (needs the user's OK for each target). Tests: `tests/accounts.integration.test.ts`.
 - DB scripts: `pnpm db:push [--dry-run]`, `pnpm gen:types` (both read `.env.local`).
 
 ## Product rules

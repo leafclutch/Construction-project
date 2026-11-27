@@ -63,19 +63,36 @@ Scope = the CEO's prototype (7 pages + login with Admin / Site Staff), made real
 - [x] DB review: RLS on all 11 tables; security-definer functions pin search_path; `private` schema not usable by anon; every record table has a project_id-leading index (lists + cascade deletes). `created_by`/`accepted_by` FKs left unindexed on purpose (only hit when a user account is deleted, which the app doesn't offer)
 - [x] Migration 3 (`touch_updated_at` pins search_path, Supabase advisor warning) applied to dev with the user's OK; trigger checked, `pnpm test:db` 12/12
 - [x] Brand name: **Thekka** (chosen by the user). Note: a tender-notice app "ThekkaBazar" exists in Nepal; domain availability not checked yet
-- [ ] Sign up → confirm email → onboarding (create firm / join with code) through the real screens — needs the user to sign up a fresh test account, and Supabase Auth redirect URLs set
-- [ ] SMTP for auth emails (Supabase's built-in sender only allows a few emails per hour — not enough for the demo)
+- [x] ~~Sign up / email confirm / invite codes~~ replaced by the managed model (Phase 7). No SMTP needed: no email is ever sent
 - [ ] Production Supabase project + hosting (see docs/DEPLOY.md)
+
+### Phase 7 — Managed SaaS + per-project permissions (user decision 2026-11-27)
+Thekka is run by Leafclutch: super admins create firms and owner logins; owners create staff and choose, per project, what each person can do. No public signup, no email verification.
+- [x] Migration 4: `platform_admins`, `organizations.status` (pause a firm), `memberships.active` (turn a person off), `profiles.must_change_password`, `project_members` (per-project permission list, checked by the DB), money moved to `project_finance` (needs `money.view`). Every policy rewritten around `private.can(org, project, perm)`; super admin reads everything, writes nothing. Invites, `accept_invite`, `create_organization` removed
+- [x] Edge Function `accounts` (deployed to dev): create_firm, set_firm_status, create_staff, reset_password. Checks the caller first; accounts are created already confirmed; 12-character temporary passwords; undo on failure
+- [x] Tests: `pnpm test:db` 30/30 — project scoping, each toggle, money hidden, staff can't see other staff, turned-off member, paused firm, super admin read-only, tenant isolation, storage by permission, function called as super admin / owner / staff (403), duplicate email (409)
+- [x] `pnpm test` 11/11 incl. the app's permission list = the DB's list (read from the migration)
+- [x] First login with a temporary password forces "Set your password"
+- [x] Signup, onboarding, forgot/reset password pages removed; login says to ask the owner (or support) for a reset
+- [x] Staff page (`/staff`): search, add staff (optionally straight onto a project with toggles), copy/share login details, reset password, turn access off/on, owner changes role
+- [x] Project → Team (`/p/:id/team`): pick from staff (searchable) or create a new person, permission toggles with presets (Site supervisor, Store keeper, Accountant, Viewer) + See money, edit, remove
+- [x] Super admin (`/platform`): firms list with search, new firm (owner login shown once + copy), pause/turn on, reset owner password, open a firm read-only (banner, no edit buttons, DB blocks writes)
+- [x] Menus, buttons and pages follow the permissions (module pages show "no access" when view is off; money hidden on Site Hub and project list)
+- [x] Sidebar stays the same on every page (keeps the last opened project's menu); styled project dropdown with search and arrow keys
+- [x] Browser: site staff with no project sees "not added yet", cannot open Staff or a project by URL
+- [x] Browser (owner): Staff page, Team tab add-from-staff with Store keeper preset, toggle rules (add turns on view; view off clears the row), new person with taken email (clear message) and new email (login card, copy works), turn access off/on, new project with contract amount → billing → delete (money row removed with it). Fixed: double scrollbar in tall dialogs (shared Modal); sidebar now falls back to the only project
+- [x] Browser (new staff, Site supervisor): first login forced "Set your password" (flag cleared in DB); sees only the assigned project, no money on the board, no Team/Staff (pages say "no access" by URL too), Labour add + edit but no delete, BOQ view only; edit saved through RLS. Phone 375: no sideways scroll, bottom tabs Hub/Labour/Materials/Bills/More
+- [x] Browser (super admin): lands on Firms; create firm + owner login (card + copy); open a firm read-only (banner; no add/edit/delete on Site Hub, Labour, Team, Staff); pause (badge, toast) and turn back on; reset owner password. Fixed: the password card after a reset said "Firm created"/"Login created" (now "New temporary password"); admin header now stays on one row at 320 px and the firm search placeholder is no longer cut off
 
 ## Open decisions (user / CEO)
 - Money additions inside existing pages (material amount + paid/due, labour advance, client payments on Site Hub). Not built until approved.
 - BS (Bikram Sambat) dates in the UI.
-- Supabase Auth "Confirm email" setting and SMTP provider for the dev/prod projects.
 
 ## Blockers
-- Supabase Auth → URL Configuration: add `http://localhost:5173/**` to Redirect URLs (email confirm + password reset links), and set Site URL.
+- Supabase dashboard (dev): Authentication → Sign In / Providers → turn off "Allow new users to sign up". Safe either way (a self-signed-up account belongs to no firm and sees nothing), but it should be off.
 
 ## Test log
+- 2026-11-27 (run 10): managed SaaS model (Phase 7). Migration 4 + accounts function on dev; `pnpm test:db` 30/30, `pnpm test` 11/11, `tsc -b` clean, lint only old fast-refresh hints.
 - 2026-11-26 (run 9): DB review (indexes, RLS, function security); migration 3 applied to dev (user OK).
 - 2026-11-26 (run 8): profile page, record editing on 5 pages, project edit/billing/delete tested in the browser; Modal bug fixed; `pnpm test` 7/7, `pnpm test:db` 12/12, `tsc -b` clean, build OK.
 - 2026-11-26 (run 7): error + retry state tested with a faked 503 (tab only).
