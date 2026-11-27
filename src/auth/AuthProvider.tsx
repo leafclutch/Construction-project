@@ -17,7 +17,15 @@ export type Membership = {
   readOnly?: boolean
 }
 
-type Loaded = { userId: string; list: Membership[]; fullName: string | null; mustChangePassword: boolean; platformAdmin: boolean }
+type Loaded = {
+  userId: string
+  list: Membership[]
+  fullName: string | null
+  /** Signed link to the profile photo (7 days), or null for initials. */
+  avatarUrl: string | null
+  mustChangePassword: boolean
+  platformAdmin: boolean
+}
 
 type AuthState = {
   session: Session | null
@@ -32,6 +40,7 @@ type AuthState = {
   mustChangePassword: boolean
   /** From profiles; null until set */
   fullName: string | null
+  avatarUrl: string | null
   selectOrg: (orgId: string) => void
   /** Super admin only: open a firm read-only, or null to leave it */
   viewOrg: (org: { id: string; name: string } | null) => void
@@ -71,7 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!userId) return
     const [memberships, profile, platform] = await Promise.all([
       supabase.from('memberships').select('role, org_id, active, organizations(name, status)').eq('user_id', userId).order('created_at'),
-      supabase.from('profiles').select('must_change_password, full_name').eq('id', userId).maybeSingle(),
+      supabase.from('profiles').select('must_change_password, full_name, avatar_path').eq('id', userId).maybeSingle(),
       supabase.from('platform_admins').select('user_id').eq('user_id', userId).maybeSingle(),
     ])
     const error = memberships.error ?? profile.error ?? platform.error
@@ -85,6 +94,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
     setLoadError(error)
+    const avatarPath = profile.data?.avatar_path
+    const avatar = avatarPath ? await supabase.storage.from('avatars').createSignedUrl(avatarPath, 7 * 86400) : null
     const next: Loaded = {
       userId,
       list: (memberships.data ?? []).map((m) => ({
@@ -95,6 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         orgStatus: m.organizations?.status ?? 'active',
       })),
       fullName: profile.data?.full_name ?? null,
+      avatarUrl: avatar?.data?.signedUrl ?? null,
       mustChangePassword: profile.data?.must_change_password ?? false,
       platformAdmin: Boolean(platform.data),
     }
@@ -158,6 +170,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     platformAdmin,
     mustChangePassword: mine?.mustChangePassword ?? false,
     fullName: mine?.fullName ?? null,
+    avatarUrl: mine?.avatarUrl ?? null,
     selectOrg,
     viewOrg,
     refresh,

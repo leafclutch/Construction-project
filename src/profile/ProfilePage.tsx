@@ -3,15 +3,16 @@ import { useNavigate } from 'react-router'
 import { useAuth } from '../auth/AuthProvider'
 import { Avatar, useRoleLine } from '../components/AccountMenu'
 import { useToast } from '../components/toast'
-import { Button, Field, FormError, Input, PageHeader, Panel } from '../components/ui'
+import { Button, cx, Field, FormError, Input, PageHeader, Panel } from '../components/ui'
 import { ROLE_LABEL } from '../lib/brand'
+import { compressImage } from '../lib/compressImage'
 import { isInstalled, isIos } from '../lib/install'
 import { currentSubscription, disablePush, enablePush, pushSupported } from '../lib/push'
 import { supabase } from '../lib/supabase'
 import { unwrap } from '../lib/useAsyncData'
 
 export function ProfilePage() {
-  const { session, memberships, membership, selectOrg, fullName, refresh, isAdmin } = useAuth()
+  const { session, memberships, membership, selectOrg, fullName, refresh, isAdmin, avatarUrl } = useAuth()
   const roleLine = useRoleLine()
   const navigate = useNavigate()
   const email = session!.user.email ?? ''
@@ -27,6 +28,7 @@ export function ProfilePage() {
             <p className="truncate text-lg font-semibold">{fullName || 'No name yet'}</p>
             <p className="truncate text-sm text-muted">{email}</p>
             {roleLine && <p className="mt-1.5 inline-block rounded-md bg-surface-2 px-2 py-0.5 text-xs font-medium">{roleLine}</p>}
+            <PhotoButtons userId={session!.user.id} hasPhoto={Boolean(avatarUrl)} onSaved={refresh} />
           </div>
         </Panel>
 
@@ -197,6 +199,73 @@ function PushToggle() {
           className="relative h-7 w-12 shrink-0 rounded-full bg-line transition-colors peer-checked:bg-ledger peer-focus-visible:outline-2 peer-focus-visible:outline-focus peer-disabled:opacity-50 after:absolute after:left-1 after:top-1 after:size-5 after:rounded-full after:bg-surface after:shadow after:transition-transform peer-checked:after:translate-x-5"
         />
       </label>
+      <FormError error={error} />
+    </div>
+  )
+}
+
+/** Swaps the profile photo: upload the new file, point the profile at it, then delete the old one. */
+async function savePhoto(userId: string, file: File | null) {
+  const { avatar_path: old } = await unwrap(supabase.from('profiles').select('avatar_path').eq('id', userId).single())
+  let path: string | null = null
+  if (file) {
+    // Always scaled: the avatar is shown at most 64 px wide.
+    const small = await compressImage(file, 512, 0.85, 0)
+    path = `${userId}/${crypto.randomUUID()}.${small.type === 'image/png' ? 'png' : small.type === 'image/webp' ? 'webp' : 'jpg'}`
+    await unwrap(supabase.storage.from('avatars').upload(path, small, { contentType: small.type }))
+  }
+  try {
+    await unwrap(supabase.from('profiles').update({ avatar_path: path }).eq('id', userId).select('id').single())
+  } catch (e) {
+    if (path) await supabase.storage.from('avatars').remove([path])
+    throw e
+  }
+  if (old) await supabase.storage.from('avatars').remove([old])
+}
+
+function PhotoButtons({ userId, hasPhoto, onSaved }: { userId: string; hasPhoto: boolean; onSaved: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<unknown>(null)
+  const toast = useToast()
+
+  async function save(file: File | null) {
+    setBusy(true)
+    setError(null)
+    try {
+      await savePhoto(userId, file)
+      await onSaved()
+      toast(file ? 'Photo updated' : 'Photo removed')
+    } catch (e) {
+      setError(e)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const link = 'min-h-11 text-sm font-semibold underline underline-offset-4 disabled:opacity-50'
+  return (
+    <div className="mt-1">
+      <div className="flex flex-wrap gap-x-4">
+        <label className={cx(link, 'flex cursor-pointer items-center has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-focus', busy && 'pointer-events-none opacity-50')}>
+          {busy ? 'Saving…' : hasPhoto ? 'Change photo' : 'Add photo'}
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="sr-only"
+            disabled={busy}
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              e.target.value = ''
+              if (file) void save(file)
+            }}
+          />
+        </label>
+        {hasPhoto && (
+          <button type="button" disabled={busy} onClick={() => void save(null)} className={cx(link, 'text-muted')}>
+            Remove
+          </button>
+        )}
+      </div>
       <FormError error={error} />
     </div>
   )

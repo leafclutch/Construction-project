@@ -11,8 +11,8 @@ export function fitWithin(width: number, height: number, max: number) {
  * they upload on weak signal and fit in the phone's offline storage. PDFs, small images and
  * anything the browser can't decode (e.g. some HEIC) are returned unchanged.
  */
-export async function compressImage(file: File, max = 1600, quality = 0.8): Promise<File> {
-  if (!file.type.startsWith('image/') || file.type === 'image/gif' || file.size < 300_000) return file
+export async function compressImage(file: File, max = 1600, quality = 0.8, skipBelowBytes = 300_000): Promise<File> {
+  if (!file.type.startsWith('image/') || file.type === 'image/gif' || file.size < skipBelowBytes) return file
   try {
     const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' })
     const { width, height } = fitWithin(bitmap.width, bitmap.height, max)

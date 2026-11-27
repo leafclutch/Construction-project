@@ -22,7 +22,7 @@ Plan, checklist, test results and blockers: `docs/PLAN.md`. Keep it in sync with
 - RLS: records use `private.can(org_id, project_id, '<perm>')`; every select also allows `private.is_platform_admin()` (support reads, never writes). `memberships.active = false` or a suspended firm cuts all access.
 - Money (contract, billed) lives in `project_finance`, readable only with `money.view`.
 - Money and quantity math (BOQ amount, wage, VAT 13%, steel D²/162) is done by generated columns in Postgres; the UI only previews it.
-- Storage: private buckets `drawings`, `receipts`; object path `<org_id>/<project_id>/<file>`; view through signed URLs.
+- Storage: private buckets `drawings`, `receipts`; object path `<org_id>/<project_id>/<file>`; view through signed URLs. Profile photos: private bucket `avatars`, path `<user_id>/<file>`, each person reads/writes only their own folder.
 - Column-level grants (migration 2): clients may only write data columns. A new table or column needs an explicit `grant insert/update (cols)`, or writes fail with 42501.
 - Any new table: org_id, composite FK, RLS policies, column grants, and a case in `tests/rls.integration.test.ts`. A new module also needs its permissions in both lists.
 - UI permissions: `useProject().can(perm)` inside project pages, `useCanOn(project)` elsewhere; row buttons take `module`. Hide what isn't allowed; the DB enforces it anyway.

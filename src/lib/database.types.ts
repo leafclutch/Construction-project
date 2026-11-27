@@ -227,14 +227,14 @@ isOneToOne: true
                   ]
                 },"profiles": {
                   Row: {
-                    "created_at": string,"email": string | null,"full_name": string,"id": string,"must_change_password": boolean
+                    "avatar_path": string | null,"created_at": string,"email": string | null,"full_name": string,"id": string,"must_change_password": boolean
                   }
                   ComputedFields: never
                   Insert: {
-                    "created_at"?: string,"email"?: string | null,"full_name"?: string,"id": string,"must_change_password"?: boolean
+                    "avatar_path"?: string | null,"created_at"?: string,"email"?: string | null,"full_name"?: string,"id": string,"must_change_password"?: boolean
                   }
                   Update: {
-                    "created_at"?: string,"email"?: string | null,"full_name"?: string,"id"?: string,"must_change_password"?: boolean
+                    "avatar_path"?: string | null,"created_at"?: string,"email"?: string | null,"full_name"?: string,"id"?: string,"must_change_password"?: boolean
                   }
                   Relationships: [
                     

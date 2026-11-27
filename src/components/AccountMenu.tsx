@@ -17,10 +17,16 @@ function initials(name: string) {
 
 /** Round initials badge for the signed-in person. */
 export function Avatar({ className }: { className?: string }) {
-  const { fullName, session } = useAuth()
+  const { fullName, session, avatarUrl } = useAuth()
+  // A link that fails (expired offline, photo removed) falls back to initials.
+  const [failed, setFailed] = useState<string | null>(null)
   return (
-    <span aria-hidden className={cx('grid shrink-0 place-items-center rounded-full bg-hivis font-bold text-hivis-ink', className)}>
-      {initials(fullName || session?.user.email || '?')}
+    <span aria-hidden className={cx('grid shrink-0 place-items-center overflow-hidden rounded-full bg-hivis font-bold text-hivis-ink', className)}>
+      {avatarUrl && failed !== avatarUrl ? (
+        <img src={avatarUrl} alt="" className="size-full object-cover" onError={() => setFailed(avatarUrl)} />
+      ) : (
+        initials(fullName || session?.user.email || '?')
+      )}
     </span>
   )
 }

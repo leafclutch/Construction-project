@@ -259,6 +259,22 @@ describe('tenant isolation', () => {
   })
 })
 
+describe('profile photos', () => {
+  it('each person reads and writes only their own photo', async () => {
+    const file = new Blob([new Uint8Array([255, 216, 255])], { type: 'image/jpeg' })
+    const mine = `${staffA.id}/a-${run}.jpg`
+    expect((await staffA.client.storage.from('avatars').upload(mine, file)).error).toBeNull()
+    await ok(staffA.client.from('profiles').update({ avatar_path: mine }).eq('id', staffA.id).select('id').single())
+    // Someone else's folder, someone else's photo, or pointing the profile outside the own folder: refused.
+    expect((await staffA.client.storage.from('avatars').upload(`${ownerA.id}/x-${run}.jpg`, file)).error).not.toBeNull()
+    expect((await ownerA.client.storage.from('avatars').download(mine)).error).not.toBeNull()
+    expect((await ownerB.client.storage.from('avatars').download(mine)).error).not.toBeNull()
+    expect((await staffA.client.from('profiles').update({ avatar_path: `${ownerA.id}/x.jpg` }).eq('id', staffA.id)).error?.code).toBe('23514')
+    expect((await staffA.client.storage.from('avatars').download(mine)).error).toBeNull()
+    expect((await staffA.client.storage.from('avatars').remove([mine])).error).toBeNull()
+  })
+})
+
 describe('offline saves and push', () => {
   const labour = (id: string) => ({ id, org_id: orgA, project_id: p1, category: 'Helper', worker_count: 2, daily_rate: 800, remarks: 'Saved offline' })
 
