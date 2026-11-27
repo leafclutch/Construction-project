@@ -1,5 +1,6 @@
-// Tenant isolation + role checks against the real dev Supabase project.
+// Tenant isolation, project scoping and per-project permissions against the real dev Supabase project.
 // Run: pnpm test:db   (needs .env.local with URL, publishable and secret keys)
+// Firms and members are created with the secret key, the same way the accounts Edge Function does.
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { randomBytes } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -12,14 +13,11 @@ const admin = createClient(url, secret, { auth: { persistSession: false } })
 const run = randomBytes(3).toString('hex')
 const password = randomBytes(18).toString('base64url')
 
-async function userClient(label: string) {
-  const email = `rls-${label}-${run}@nirman-sathi.test`
-  const { data, error } = await admin.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-    user_metadata: { full_name: `Test ${label}` },
-  })
+type User = { client: SupabaseClient; id: string }
+
+async function userClient(label: string): Promise<User> {
+  const email = `rls-${label}-${run}@thekka.test`
+  const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { full_name: `Test ${label}` } })
   if (error) throw error
   const client = createClient(url, publishable, { auth: { persistSession: false } })
   const { error: signInError } = await client.auth.signInWithPassword({ email, password })
@@ -27,174 +25,235 @@ async function userClient(label: string) {
   return { client, id: data.user.id }
 }
 
-let ownerA: { client: SupabaseClient; id: string }
-let staffA: { client: SupabaseClient; id: string }
-let ownerB: { client: SupabaseClient; id: string }
-let orgA: string
-let orgB: string
-let projectA: string
-let projectB: string
+async function ok<T>(p: PromiseLike<{ data: T; error: unknown }>) {
+  const { data, error } = await p
+  if (error) throw error
+  return data
+}
+
+let ownerA: User, staffA: User, otherStaffA: User, ownerB: User, support: User
+let orgA: string, orgB: string
+let p1: string, p2: string, projectB: string
+
+const STAFF_PERMS = ['labour.view', 'labour.add', 'materials.view', 'materials.add', 'bills.view', 'bills.add', 'steel.view', 'steel.add']
 
 beforeAll(async () => {
-  ;[ownerA, staffA, ownerB] = await Promise.all([userClient('owner-a'), userClient('staff-a'), userClient('owner-b')])
+  ;[ownerA, staffA, otherStaffA, ownerB, support] = await Promise.all(
+    ['owner-a', 'staff-a', 'staff2-a', 'owner-b', 'support'].map(userClient),
+  )
+  orgA = (await ok(admin.from('organizations').insert({ name: `Org A ${run}` }).select().single())).id
+  orgB = (await ok(admin.from('organizations').insert({ name: `Org B ${run}` }).select().single())).id
+  await ok(
+    admin.from('memberships').insert([
+      { org_id: orgA, user_id: ownerA.id, role: 'owner' },
+      { org_id: orgA, user_id: staffA.id, role: 'site_staff' },
+      { org_id: orgA, user_id: otherStaffA.id, role: 'site_staff' },
+      { org_id: orgB, user_id: ownerB.id, role: 'owner' },
+    ]),
+  )
+  await ok(admin.from('platform_admins').insert({ user_id: support.id }))
 
-  orgA = (await ownerA.client.rpc('create_organization', { p_name: `Org A ${run}` })).data
-  orgB = (await ownerB.client.rpc('create_organization', { p_name: `Org B ${run}` })).data
-  expect(orgA).toBeTruthy()
-  expect(orgB).toBeTruthy()
+  p1 = (await ok(ownerA.client.from('projects').insert({ org_id: orgA, name: 'Site 1' }).select().single())).id
+  p2 = (await ok(ownerA.client.from('projects').insert({ org_id: orgA, name: 'Site 2' }).select().single())).id
+  projectB = (await ok(ownerB.client.from('projects').insert({ org_id: orgB, name: 'Site B' }).select().single())).id
+  await ok(ownerA.client.from('project_finance').update({ contract_amount: 1000000 }).eq('project_id', p1).select())
 
-  const pa = await ownerA.client.from('projects').insert({ org_id: orgA, name: 'Site A', contract_amount: 1000000 }).select().single()
-  const pb = await ownerB.client.from('projects').insert({ org_id: orgB, name: 'Site B' }).select().single()
-  expect(pa.error).toBeNull()
-  expect(pb.error).toBeNull()
-  projectA = pa.data.id
-  projectB = pb.data.id
-
-  const invite = await ownerA.client.from('invites').insert({ org_id: orgA, role: 'site_staff' }).select().single()
-  expect(invite.error).toBeNull()
-  const accepted = await staffA.client.rpc('accept_invite', { p_code: invite.data.code.toLowerCase() })
-  expect(accepted.error).toBeNull()
-  expect(accepted.data).toBe(orgA)
+  await ok(ownerA.client.from('project_members').insert({ project_id: p1, org_id: orgA, user_id: staffA.id, permissions: STAFF_PERMS }))
+  await ok(ownerA.client.from('project_members').insert({ project_id: p2, org_id: orgA, user_id: otherStaffA.id, permissions: ['labour.view'] }))
 }, 60_000)
 
 afterAll(async () => {
   if (orgA) await admin.from('organizations').delete().eq('id', orgA)
   if (orgB) await admin.from('organizations').delete().eq('id', orgB)
-  for (const u of [ownerA, staffA, ownerB]) if (u) await admin.auth.admin.deleteUser(u.id)
+  for (const u of [ownerA, staffA, otherStaffA, ownerB, support]) if (u) await admin.auth.admin.deleteUser(u.id)
 }, 60_000)
 
-describe('roles inside one tenant', () => {
-  it('site staff can record labour, and the wage is computed by the DB', async () => {
-    const { data, error } = await staffA.client
-      .from('labour_entries')
-      .insert({ org_id: orgA, project_id: projectA, category: 'Mason', worker_count: 4, daily_rate: 1150, remarks: 'Column casting' })
-      .select()
-      .single()
-    expect(error).toBeNull()
-    expect(Number(data.total_wage)).toBe(4600)
+describe('project scoping', () => {
+  it('staff see only the projects they are added to; the owner sees all', async () => {
+    const staff = await ok(staffA.client.from('projects').select('id').eq('org_id', orgA))
+    expect(staff.map((p) => p.id)).toEqual([p1])
+    const owner = await ok(ownerA.client.from('projects').select('id').eq('org_id', orgA))
+    expect(owner).toHaveLength(2)
   })
 
-  it('site staff cannot delete or edit records', async () => {
-    const { data: rows } = await staffA.client.from('labour_entries').select('id').eq('project_id', projectA)
-    const id = rows![0].id
-    const del = await staffA.client.from('labour_entries').delete().eq('id', id).select()
-    expect(del.data).toEqual([])
-    const upd = await staffA.client.from('labour_entries').update({ daily_rate: 1 }).eq('id', id).select()
-    expect(upd.data).toEqual([])
+  it('staff cannot read records of a project they are not on', async () => {
+    await ok(ownerA.client.from('labour_entries').insert({ org_id: orgA, project_id: p2, category: 'Mason', worker_count: 1, daily_rate: 1000, remarks: 'P2 work' }))
+    const rows = await ok(staffA.client.from('labour_entries').select('id').eq('project_id', p2))
+    expect(rows).toEqual([])
+    const add = await staffA.client.from('labour_entries').insert({ org_id: orgA, project_id: p2, category: 'Mason', worker_count: 1, daily_rate: 1, remarks: 'x' })
+    expect(add.error?.code).toBe('42501')
   })
 
-  it('site staff cannot create projects, BOQ items or invites', async () => {
-    const p = await staffA.client.from('projects').insert({ org_id: orgA, name: 'Sneaky' })
-    expect(p.error?.code).toBe('42501')
-    const b = await staffA.client.from('boq_items').insert({ org_id: orgA, project_id: projectA, description: 'x', unit: 'm3', quantity: 1, rate: 1 })
-    expect(b.error?.code).toBe('42501')
-    const i = await staffA.client.from('invites').insert({ org_id: orgA, role: 'admin' })
-    expect(i.error?.code).toBe('42501')
-  })
-
-  it('site staff cannot promote themselves', async () => {
-    const r = await staffA.client.from('memberships').update({ role: 'admin' }).eq('user_id', staffA.id).select()
-    expect(r.data).toEqual([])
-  })
-
-  it('nobody can forge who recorded an entry or rewrite tenancy keys', async () => {
-    const forged = await staffA.client
-      .from('labour_entries')
-      .insert({ org_id: orgA, project_id: projectA, category: 'Mason', worker_count: 1, daily_rate: 1, remarks: 'x', created_by: ownerA.id })
-    expect(forged.error?.code).toBe('42501')
-
-    const moved = await ownerA.client.from('projects').update({ org_id: orgB }).eq('id', projectA)
-    expect(moved.error?.code).toBe('42501')
-
-    const email = await staffA.client.from('profiles').update({ email: 'boss@evil.test' }).eq('id', staffA.id)
-    expect(email.error?.code).toBe('42501')
-    const name = await staffA.client.from('profiles').update({ full_name: 'Staff A' }).eq('id', staffA.id).select()
-    expect(name.data).toHaveLength(1)
-  })
-
-  it('owner can delete records', async () => {
-    const { data: rows } = await ownerA.client.from('labour_entries').select('id').eq('project_id', projectA)
-    const del = await ownerA.client.from('labour_entries').delete().eq('id', rows![0].id).select()
-    expect(del.data).toHaveLength(1)
-  })
-
-  it('VAT and BBS math is done by the DB', async () => {
-    const v = await staffA.client
-      .from('vat_bills')
-      .insert({ org_id: orgA, project_id: projectA, bill_date: '2026-11-18', bill_no: 'VAT-1', supplier_name: 'Mithila', supplier_pan: '601845219', taxable_amount: 125000 })
-      .select()
-      .single()
-    expect(v.error).toBeNull()
-    expect(Number(v.data.vat_amount)).toBe(16250)
-    expect(Number(v.data.gross_amount)).toBe(141250)
-
-    const s = await staffA.client
-      .from('bbs_items')
-      .insert({ org_id: orgA, project_id: projectA, member: 'F1', bar_dia_mm: 12, bar_count: 20, cut_length_m: 1.7 })
-      .select()
-      .single()
-    expect(s.error).toBeNull()
-    expect(Number(s.data.total_weight_kg)).toBe(30.22)
+  it('staff see only themselves in the team; the owner sees everyone', async () => {
+    const m = await ok(staffA.client.from('memberships').select('user_id').eq('org_id', orgA))
+    expect(m.map((r) => r.user_id)).toEqual([staffA.id])
+    const pm = await ok(staffA.client.from('project_members').select('user_id').eq('org_id', orgA))
+    expect(pm.map((r) => r.user_id)).toEqual([staffA.id])
+    const other = await ok(staffA.client.from('profiles').select('id').eq('id', otherStaffA.id))
+    expect(other).toEqual([])
+    expect(await ok(ownerA.client.from('memberships').select('user_id').eq('org_id', orgA))).toHaveLength(3)
+    expect(await ok(ownerA.client.from('profiles').select('id').eq('id', otherStaffA.id))).toHaveLength(1)
   })
 })
 
-describe('dashboard summary', () => {
-  it('project_summaries adds up the records the member can see', async () => {
-    const { data, error } = await staffA.client.from('project_summaries').select('*').eq('project_id', projectA).single()
-    expect(error).toBeNull()
-    expect(Number(data!.vat_gross)).toBe(141250)
-    expect(Number(data!.steel_kg)).toBe(30.22)
-    expect(Number(data!.labour_cost)).toBe(0) // the one labour row was deleted by the owner
+describe('per-project permissions', () => {
+  it('add without edit/delete: can add, cannot change or remove', async () => {
+    const row = await ok(
+      staffA.client.from('labour_entries').insert({ org_id: orgA, project_id: p1, category: 'Mason', worker_count: 4, daily_rate: 1150, remarks: 'Column casting' }).select().single(),
+    )
+    expect(Number(row.total_wage)).toBe(4600)
+    expect(await ok(staffA.client.from('labour_entries').update({ daily_rate: 1 }).eq('id', row.id).select())).toEqual([])
+    expect(await ok(staffA.client.from('labour_entries').delete().eq('id', row.id).select())).toEqual([])
+  })
+
+  it('a module without permission is closed: BOQ and drawings', async () => {
+    await ok(ownerA.client.from('boq_items').insert({ org_id: orgA, project_id: p1, description: 'PCC', unit: 'm3', quantity: 1, rate: 100 }))
+    expect(await ok(staffA.client.from('boq_items').select('id').eq('project_id', p1))).toEqual([])
+    const b = await staffA.client.from('boq_items').insert({ org_id: orgA, project_id: p1, description: 'x', unit: 'm3', quantity: 1, rate: 1 })
+    expect(b.error?.code).toBe('42501')
+  })
+
+  it('turning on edit lets the staff member edit', async () => {
+    const { id } = await ok(staffA.client.from('labour_entries').select('id').eq('project_id', p1).limit(1).single())
+    await ok(ownerA.client.from('project_members').update({ permissions: [...STAFF_PERMS, 'labour.edit'] }).eq('project_id', p1).eq('user_id', staffA.id).select())
+    expect(await ok(staffA.client.from('labour_entries').update({ daily_rate: 1200 }).eq('id', id).select())).toHaveLength(1)
+  })
+
+  it('money needs money.view', async () => {
+    expect(await ok(staffA.client.from('project_finance').select('*').eq('project_id', p1))).toEqual([])
+    const owner = await ok(ownerA.client.from('project_finance').select('contract_amount').eq('project_id', p1).single())
+    expect(Number(owner.contract_amount)).toBe(1000000)
+    await ok(ownerA.client.from('project_members').update({ permissions: [...STAFF_PERMS, 'money.view'] }).eq('project_id', p1).eq('user_id', staffA.id).select())
+    expect(await ok(staffA.client.from('project_finance').select('*').eq('project_id', p1))).toHaveLength(1)
+    // Seeing money is not changing it.
+    expect(await ok(staffA.client.from('project_finance').update({ billed_amount: 5 }).eq('project_id', p1).select())).toEqual([])
+  })
+
+  it('unknown permissions are rejected by the DB', async () => {
+    const r = await ownerA.client.from('project_members').update({ permissions: ['labour.view', 'everything'] }).eq('project_id', p1).eq('user_id', staffA.id)
+    expect(r.error?.code).toBe('23514')
+  })
+
+  it('staff cannot give themselves permissions, join projects or promote themselves', async () => {
+    const self = await ok(staffA.client.from('project_members').update({ permissions: ['labour.delete'] }).eq('user_id', staffA.id).select())
+    expect(self).toEqual([])
+    const join = await staffA.client.from('project_members').insert({ project_id: p2, org_id: orgA, user_id: staffA.id, permissions: [] })
+    expect(join.error?.code).toBe('42501')
+    expect(await ok(staffA.client.from('memberships').update({ role: 'admin' }).eq('user_id', staffA.id).select())).toEqual([])
+  })
+
+  it('only the server creates firms and members', async () => {
+    const org = await ownerA.client.from('organizations').insert({ name: 'Mine' })
+    expect(org.error?.code).toBe('42501')
+    const mem = await ownerA.client.from('memberships').insert({ org_id: orgA, user_id: ownerB.id, role: 'admin' })
+    expect(mem.error?.code).toBe('42501')
+    const pa = await ownerA.client.from('platform_admins').insert({ user_id: ownerA.id })
+    expect(pa.error?.code).toBe('42501')
+  })
+
+  it('VAT and BBS math is done by the DB', async () => {
+    const v = await ok(
+      staffA.client.from('vat_bills').insert({ org_id: orgA, project_id: p1, bill_date: '2026-11-18', bill_no: 'VAT-1', supplier_name: 'Mithila', supplier_pan: '601845219', taxable_amount: 125000 }).select().single(),
+    )
+    expect(Number(v.vat_amount)).toBe(16250)
+    expect(Number(v.gross_amount)).toBe(141250)
+    const s = await ok(staffA.client.from('bbs_items').insert({ org_id: orgA, project_id: p1, member: 'F1', bar_dia_mm: 12, bar_count: 20, cut_length_m: 1.7 }).select().single())
+    expect(Number(s.total_weight_kg)).toBe(30.22)
+  })
+
+  it('nobody can forge who recorded an entry or rewrite tenancy keys', async () => {
+    const forged = await staffA.client.from('labour_entries').insert({ org_id: orgA, project_id: p1, category: 'Mason', worker_count: 1, daily_rate: 1, remarks: 'x', created_by: ownerA.id })
+    expect(forged.error?.code).toBe('42501')
+    const moved = await ownerA.client.from('projects').update({ org_id: orgB }).eq('id', p1)
+    expect(moved.error?.code).toBe('42501')
+    const email = await staffA.client.from('profiles').update({ email: 'boss@evil.test' }).eq('id', staffA.id)
+    expect(email.error?.code).toBe('42501')
+  })
+})
+
+describe('turning access off', () => {
+  it('a turned-off member loses data access at once, and can be turned back on', async () => {
+    await ok(ownerA.client.from('memberships').update({ active: false }).eq('org_id', orgA).eq('user_id', otherStaffA.id).select())
+    expect(await ok(otherStaffA.client.from('projects').select('id'))).toEqual([])
+    // The app can still tell them why.
+    expect(await ok(otherStaffA.client.from('organizations').select('id').eq('id', orgA))).toHaveLength(1)
+    await ok(ownerA.client.from('memberships').update({ active: true }).eq('org_id', orgA).eq('user_id', otherStaffA.id).select())
+    expect(await ok(otherStaffA.client.from('projects').select('id'))).toHaveLength(1)
+  })
+
+  it('admins cannot turn off the owner or themselves', async () => {
+    expect(await ok(ownerA.client.from('memberships').update({ active: false }).eq('user_id', ownerA.id).select())).toEqual([])
+  })
+
+  it('a suspended firm sees nothing', async () => {
+    await ok(admin.from('organizations').update({ status: 'suspended' }).eq('id', orgB))
+    expect(await ok(ownerB.client.from('projects').select('id'))).toEqual([])
+    const write = await ownerB.client.from('projects').insert({ org_id: orgB, name: 'During suspension' })
+    expect(write.error?.code).toBe('42501')
+    await ok(admin.from('organizations').update({ status: 'active' }).eq('id', orgB))
+    expect(await ok(ownerB.client.from('projects').select('id'))).toHaveLength(1)
+  })
+})
+
+describe('super admin (support)', () => {
+  it('reads every firm', async () => {
+    expect(await ok(support.client.from('organizations').select('id').in('id', [orgA, orgB]))).toHaveLength(2)
+    expect(await ok(support.client.from('projects').select('id').eq('org_id', orgA))).toHaveLength(2)
+    expect((await ok(support.client.from('labour_entries').select('id').eq('org_id', orgA))).length).toBeGreaterThan(0)
+    expect(await ok(support.client.from('project_finance').select('project_id').eq('project_id', p1))).toHaveLength(1)
+  })
+
+  it('never writes firm records', async () => {
+    const add = await support.client.from('labour_entries').insert({ org_id: orgA, project_id: p1, category: 'Mason', worker_count: 1, daily_rate: 1, remarks: 'x' })
+    expect(add.error?.code).toBe('42501')
+    expect(await ok(support.client.from('projects').update({ name: 'x' }).eq('id', p1).select())).toEqual([])
+    expect(await ok(support.client.from('labour_entries').delete().eq('org_id', orgA).select())).toEqual([])
+    const project = await support.client.from('projects').insert({ org_id: orgA, name: 'Support project' })
+    expect(project.error?.code).toBe('42501')
   })
 })
 
 describe('tenant isolation', () => {
-  it('another tenant sees nothing of tenant A', async () => {
-    for (const table of ['projects', 'labour_entries', 'vat_bills', 'bbs_items', 'memberships', 'organizations', 'project_summaries']) {
+  it('another firm sees nothing of firm A', async () => {
+    for (const table of ['projects', 'labour_entries', 'vat_bills', 'bbs_items', 'memberships', 'project_members', 'project_finance', 'organizations', 'project_summaries']) {
       const { data, error } = await ownerB.client.from(table).select('*').eq(table === 'organizations' ? 'id' : 'org_id', orgA)
       expect(error, table).toBeNull()
       expect(data, table).toEqual([])
     }
-    const profiles = await ownerB.client.from('profiles').select('id').eq('id', ownerA.id)
-    expect(profiles.data).toEqual([])
+    expect(await ok(ownerB.client.from('profiles').select('id').eq('id', ownerA.id))).toEqual([])
   })
 
-  it('another tenant cannot write into tenant A', async () => {
-    const direct = await ownerB.client
-      .from('material_entries')
-      .insert({ org_id: orgA, project_id: projectA, material: 'Cement', quantity: 10, unit: 'Bags' })
+  it('another firm cannot write into firm A', async () => {
+    const direct = await ownerB.client.from('material_entries').insert({ org_id: orgA, project_id: p1, material: 'Cement', quantity: 10, unit: 'Bags' })
     expect(direct.error?.code).toBe('42501')
-
     // Own org id + someone else's project: blocked by the composite FK.
-    const crossed = await ownerB.client
-      .from('material_entries')
-      .insert({ org_id: orgB, project_id: projectA, material: 'Cement', quantity: 10, unit: 'Bags' })
+    const crossed = await ownerB.client.from('material_entries').insert({ org_id: orgB, project_id: p1, material: 'Cement', quantity: 10, unit: 'Bags' })
     expect(crossed.error?.code).toBe('23503')
-
-    const upd = await ownerB.client.from('projects').update({ name: 'hacked' }).eq('id', projectA).select()
-    expect(upd.data).toEqual([])
+    // Adding firm A's staff to a firm B project: blocked by the membership FK.
+    const poach = await ownerB.client.from('project_members').insert({ project_id: projectB, org_id: orgB, user_id: staffA.id, permissions: [] })
+    expect(poach.error?.code).toBe('23503')
+    expect(await ok(ownerB.client.from('projects').update({ name: 'hacked' }).eq('id', p1).select())).toEqual([])
   })
 
-  it('storage objects are scoped to the tenant folder', async () => {
-    const path = `${orgA}/${projectA}/challan-${run}.png`
+  it('storage follows project permissions', async () => {
     const file = new Blob([new Uint8Array([137, 80, 78, 71])], { type: 'image/png' })
-    const up = await staffA.client.storage.from('receipts').upload(path, file)
-    expect(up.error).toBeNull()
-
-    const foreignRead = await ownerB.client.storage.from('receipts').download(path)
-    expect(foreignRead.error).not.toBeNull()
-    const foreignWrite = await ownerB.client.storage.from('receipts').upload(`${orgA}/${projectA}/evil-${run}.png`, file)
-    expect(foreignWrite.error).not.toBeNull()
-    const staffDrawing = await staffA.client.storage.from('drawings').upload(`${orgA}/${projectA}/d-${run}.png`, file)
-    expect(staffDrawing.error).not.toBeNull()
-
-    const ownRead = await ownerA.client.storage.from('receipts').download(path)
-    expect(ownRead.error).toBeNull()
+    const path = `${orgA}/${p1}/challan-${run}.png`
+    expect((await staffA.client.storage.from('receipts').upload(path, file)).error).toBeNull()
+    // Not on project 2, no drawings permission, other firm: all refused.
+    expect((await staffA.client.storage.from('receipts').upload(`${orgA}/${p2}/x-${run}.png`, file)).error).not.toBeNull()
+    expect((await staffA.client.storage.from('drawings').upload(`${orgA}/${p1}/d-${run}.png`, file)).error).not.toBeNull()
+    expect((await ownerB.client.storage.from('receipts').download(path)).error).not.toBeNull()
+    expect((await otherStaffA.client.storage.from('receipts').download(path)).error).not.toBeNull()
+    expect((await ownerA.client.storage.from('receipts').download(path)).error).toBeNull()
+    expect((await support.client.storage.from('receipts').download(path)).error).toBeNull()
     await admin.storage.from('receipts').remove([path])
   })
 
-  it('unused project B stays private too', async () => {
-    const { data } = await ownerA.client.from('projects').select('id').eq('id', projectB)
-    expect(data).toEqual([])
+  it('project_summaries only counts what the person may see', async () => {
+    const s = await ok(staffA.client.from('project_summaries').select('*').eq('project_id', p1).single())
+    expect(Number(s.vat_gross)).toBe(141250)
+    expect(Number(s.boq_total)).toBe(0) // no boq.view
+    const o = await ok(ownerA.client.from('project_summaries').select('*').eq('project_id', p1).single())
+    expect(Number(o.boq_total)).toBe(100)
   })
 })

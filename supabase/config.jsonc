@@ -203,7 +203,8 @@
     // Requires enable_refresh_token_rotation = true.
     "refresh_token_reuse_interval": 10,
     // Allow/disallow new user signups to your project. Existing users can still sign in.
-    "enable_signup": true,
+    // Off: accounts are created only by the accounts Edge Function (admin API still works).
+    "enable_signup": false,
     // Allow/disallow anonymous sign-ins to your project.
     "enable_anonymous_sign_ins": false,
     // Allow/disallow testing manual linking of accounts
@@ -470,6 +471,11 @@
     "port": 54327,
     // Configure one of the supported backends: `postgres`, `bigquery`.
     "backend": "postgres"
+  },
+
+  "functions": {
+    // The function checks the caller's token itself (works with the new asymmetric JWT keys).
+    "accounts": { "verify_jwt": false }
   },
 
   // Experimental features may be deprecated any time
