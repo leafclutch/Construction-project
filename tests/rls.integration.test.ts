@@ -2,7 +2,8 @@
 // Run: pnpm test:db   (needs .env.local with URL, publishable and secret keys)
 // Firms and members are created with the secret key, the same way the accounts Edge Function does.
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { randomBytes } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
+import pg from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 const url = process.env.VITE_SUPABASE_URL!
@@ -256,4 +257,58 @@ describe('tenant isolation', () => {
     const o = await ok(ownerA.client.from('project_summaries').select('*').eq('project_id', p1).single())
     expect(Number(o.boq_total)).toBe(100)
   })
+})
+
+describe('offline saves and push', () => {
+  const labour = (id: string) => ({ id, org_id: orgA, project_id: p1, category: 'Helper', worker_count: 2, daily_rate: 800, remarks: 'Saved offline' })
+
+  it('a record sent twice with its own id is saved once (the retry gets 23505)', async () => {
+    const id = randomUUID()
+    await ok(staffA.client.from('labour_entries').insert(labour(id)))
+    const again = await staffA.client.from('labour_entries').insert(labour(id))
+    expect(again.error?.code).toBe('23505')
+    expect(await ok(staffA.client.from('labour_entries').select('id').eq('id', id))).toHaveLength(1)
+  })
+
+  it('push subscriptions: own rows only, saved through the function, a shared phone moves to the new person', async () => {
+    const endpoint = `https://push.example.test/${run}`
+    const save = (u: User) => ok(u.client.rpc('save_push_subscription', { p_endpoint: endpoint, p_p256dh: 'key', p_auth: 'auth' }))
+    await save(staffA)
+    expect(await ok(staffA.client.from('push_subscriptions').select('endpoint').eq('endpoint', endpoint))).toHaveLength(1)
+    expect(await ok(ownerA.client.from('push_subscriptions').select('id').eq('endpoint', endpoint))).toEqual([])
+    await save(ownerA)
+    expect(await ok(staffA.client.from('push_subscriptions').select('id').eq('endpoint', endpoint))).toEqual([])
+    expect(await ok(ownerA.client.from('push_subscriptions').select('user_id').eq('endpoint', endpoint))).toEqual([{ user_id: ownerA.id }])
+    const direct = await staffA.client.from('push_subscriptions').insert({ user_id: ownerA.id, endpoint: `${endpoint}/x`, p256dh: 'k', auth: 'a' })
+    expect(direct.error?.code).toBe('42501')
+    const anon = await createClient(url, publishable, { auth: { persistSession: false } }).rpc('save_push_subscription', { p_endpoint: endpoint, p_p256dh: 'k', p_auth: 'a' })
+    expect(anon.error).toBeTruthy()
+    await ok(ownerA.client.from('push_subscriptions').delete().eq('endpoint', endpoint))
+  })
+
+  it('a staff entry calls the push function; an owner entry does not', async () => {
+    const db = new pg.Client({ connectionString: process.env.DIRECT_URL, ssl: { rejectUnauthorized: false } })
+    await db.connect()
+    // Replies from the push function look like {"sent":0,...}.
+    const calls = async (since: Date) =>
+      (await db.query(`select count(*)::int n from net._http_response where created > $1 and content like '{"sent":%'`, [since])).rows[0].n as number
+    const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
+    try {
+      const t1 = new Date()
+      await ok(staffA.client.from('labour_entries').insert(labour(randomUUID())))
+      let n = 0
+      for (let i = 0; i < 15 && n === 0; i++) {
+        await wait(1000)
+        n = await calls(t1)
+      }
+      expect(n).toBeGreaterThan(0)
+
+      const t2 = new Date()
+      await ok(ownerA.client.from('labour_entries').insert(labour(randomUUID())))
+      await wait(5000)
+      expect(await calls(t2)).toBe(0)
+    } finally {
+      await db.end()
+    }
+  }, 40_000)
 })

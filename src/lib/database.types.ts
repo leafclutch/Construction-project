@@ -323,6 +323,26 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"push_subscriptions": {
+                  Row: {
+                    "auth": string,"created_at": string,"endpoint": string,"id": string,"p256dh": string,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "auth": string,"created_at"?: string,"endpoint": string,"id"?: string,"p256dh": string,"user_id": string
+                  }
+                  Update: {
+                    "auth"?: string,"created_at"?: string,"endpoint"?: string,"id"?: string,"p256dh"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "push_subscriptions_user_id_fkey"
+      columns: ["user_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"vat_bills": {
                   Row: {
                     "bill_date": string,"bill_no": string,"created_at": string,"created_by": string | null,"file_path": string | null,"gross_amount": number | null,"id": string,"org_id": string,"project_id": string,"supplier_name": string,"supplier_pan": string,"taxable_amount": number,"vat_amount": number | null,"vat_included": boolean
@@ -381,7 +401,9 @@ isOneToOne: false
                 }
           }
           Functions: {
-            [_ in never]: never
+            "save_push_subscription":
+{ Args: { "p_auth": string,"p_endpoint": string,"p_p256dh": string }; Returns: undefined
+                           }
           }
           Enums: {
             "drawing_category": "structural"|"architectural"|"mep"|"as_built","member_role": "owner"|"admin"|"site_staff","org_status": "active"|"suspended","project_status": "running"|"on_hold"|"completed"
