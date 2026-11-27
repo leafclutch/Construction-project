@@ -1,7 +1,6 @@
 import { Building2, Eye, FileImage, FileText, Upload } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router'
-import { useAuth } from '../../auth/AuthProvider'
 import { Modal } from '../../components/Modal'
 import { DeleteRowButton, FilePicker } from '../../components/records'
 import { useToast } from '../../components/toast'
@@ -24,8 +23,7 @@ function fileSize(bytes: number) {
 }
 
 export function DrawingsPage() {
-  const { project } = useProject()
-  const { isAdmin } = useAuth()
+  const { project, can } = useProject()
   const { data, error, reload } = useAsyncData(() => listDrawings(project.id), [project.id])
   const [params, setParams] = useSearchParams()
   const category = (params.get('category') ?? '') as Category | ''
@@ -41,7 +39,7 @@ export function DrawingsPage() {
         title="Drawings"
         description="Structural, architectural, MEP and as-built drawings. Everyone on site sees the latest copy."
         actions={
-          isAdmin && (
+          can('drawings.add') && (
             <Button onClick={() => setUploading(true)}>
               <Upload className="size-4" aria-hidden />
               Upload drawing
@@ -79,7 +77,7 @@ export function DrawingsPage() {
       ) : rows.length === 0 ? (
         <Panel>
           <EmptyState icon={<Building2 className="size-10" />} title={category ? `No ${CATEGORIES[category].toLowerCase()} drawings` : 'No drawings yet'}>
-            {isAdmin ? 'Upload PDF or image drawings so the site always works from the latest revision.' : 'The owner has not uploaded drawings yet.'}
+            {can('drawings.add') ? 'Upload PDF or image drawings so the site always works from the latest revision.' : 'The owner has not uploaded drawings yet.'}
           </EmptyState>
         </Panel>
       ) : (
@@ -108,6 +106,7 @@ export function DrawingsPage() {
                   Open
                 </Button>
                 <DeleteRowButton
+                  module="drawings"
                   what={d.title}
                   onDelete={async () => {
                     await unwrap(supabase.from('drawings').delete().eq('id', d.id))

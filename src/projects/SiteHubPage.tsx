@@ -5,23 +5,25 @@ import { useAuth } from '../auth/AuthProvider'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { Modal } from '../components/Modal'
 import { useToast } from '../components/toast'
-import { Button, ErrorState, Field, FormError, Input, Panel, Skeleton } from '../components/ui'
+import { Button, cx, ErrorState, Field, FormError, Input, Panel, Skeleton } from '../components/ui'
+import { MODULES } from '../lib/permissions'
 import { formatDate, formatNPR, formatNumber } from '../lib/format'
 import { useAsyncData } from '../lib/useAsyncData'
-import { deleteProject, getProjectSummary, updateProject } from './api'
+import { deleteProject, getProjectSummary, updateFinance, updateProject } from './api'
 import { ProjectForm, statusLabel } from './ProjectForm'
 import { useProject } from './ProjectLayout'
 
 export function SiteHubPage() {
-  const { project, reloadProject } = useProject()
+  const { project, reloadProject, can } = useProject()
   const { isAdmin } = useAuth()
   const summary = useAsyncData(() => getProjectSummary(project.id), [project.id])
   const [dialog, setDialog] = useState<'progress' | 'edit' | 'delete' | null>(null)
   const navigate = useNavigate()
   const toast = useToast()
 
-  const contract = Number(project.contract_amount)
-  const billed = Number(project.billed_amount)
+  const finance = project.finance
+  const contract = Number(finance?.contract_amount ?? 0)
+  const billed = Number(finance?.billed_amount ?? 0)
   const pct = contract > 0 ? (billed / contract) * 100 : 0
   const s = summary.data
   const spent = s ? Number(s.labour_cost) + Number(s.vat_gross) : 0
@@ -67,27 +69,31 @@ export function SiteHubPage() {
             </p>
           )}
         </div>
-        <dl className="grid border-t-2 border-hivis-ink/80 sm:grid-cols-3">
-          <BoardFigure label="Contract amount" value={contract} />
-          <BoardFigure label="Billed so far" value={billed} />
-          <BoardFigure label="Remaining" value={Math.max(0, contract - billed)} />
-        </dl>
-        <div className="flex items-center gap-3 bg-hivis-ink px-5 py-3 text-hivis sm:px-7">
-          <div
-            className="h-2 flex-1 overflow-hidden rounded-full bg-hivis/25"
-            role="progressbar"
-            aria-label="Billed of contract"
-            aria-valuenow={Math.round(pct)}
-            aria-valuemin={0}
-            aria-valuemax={100}
-          >
-            <div className="h-full rounded-full bg-hivis" style={{ width: `${Math.min(100, pct)}%` }} />
-          </div>
-          <span className="figure text-lg">{pct.toFixed(1)}%</span>
-        </div>
+        {finance && (
+          <>
+            <dl className="grid border-t-2 border-hivis-ink/80 sm:grid-cols-3">
+              <BoardFigure label="Contract amount" value={contract} />
+              <BoardFigure label="Billed so far" value={billed} />
+              <BoardFigure label="Remaining" value={Math.max(0, contract - billed)} />
+            </dl>
+            <div className="flex items-center gap-3 bg-hivis-ink px-5 py-3 text-hivis sm:px-7">
+              <div
+                className="h-2 flex-1 overflow-hidden rounded-full bg-hivis/25"
+                role="progressbar"
+                aria-label="Billed of contract"
+                aria-valuenow={Math.round(pct)}
+                aria-valuemin={0}
+                aria-valuemax={100}
+              >
+                <div className="h-full rounded-full bg-hivis" style={{ width: `${Math.min(100, pct)}%` }} />
+              </div>
+              <span className="figure text-lg">{pct.toFixed(1)}%</span>
+            </div>
+          </>
+        )}
       </section>
 
-      <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_18rem]">
+      <div className={cx('mt-8 grid gap-8', finance && 'lg:grid-cols-[1fr_18rem]')}>
         <section aria-labelledby="records-title">
           <h2 id="records-title" className="mb-3 text-lg font-semibold">
             Site records
@@ -97,39 +103,50 @@ export function SiteHubPage() {
           ) : (
             <Panel>
               <ul>
-                <RecordRow to="labour" icon={UsersRound} label="Labour" value={s && formatNPR(s.labour_cost)} detail={s && plural(s.man_days, 'man-day')} />
-                <RecordRow to="materials" icon={Truck} label="Materials" value={s && plural(s.material_count, 'delivery', 'deliveries')} />
-                <RecordRow to="bills" icon={FileText} label="VAT bills" value={s && formatNPR(s.vat_gross)} detail={s && plural(s.vat_bill_count, 'bill')} />
-                <RecordRow to="steel" icon={Ruler} label="Steel (BBS)" value={s && `${formatNumber(s.steel_kg)} kg`} detail={s && `${(Number(s.steel_kg) / 1000).toFixed(3)} t`} />
-                <RecordRow to="boq" icon={LayoutList} label="BOQ" value={s && formatNPR(s.boq_total)} />
-                <RecordRow to="drawings" icon={Building2} label="Drawings" value={s && plural(s.drawing_count, 'file')} />
+                {can('labour.view') && (
+                  <RecordRow to="labour" icon={UsersRound} label="Labour" value={s && formatNPR(s.labour_cost)} detail={s && plural(s.man_days, 'man-day')} />
+                )}
+                {can('materials.view') && <RecordRow to="materials" icon={Truck} label="Materials" value={s && plural(s.material_count, 'delivery', 'deliveries')} />}
+                {can('bills.view') && (
+                  <RecordRow to="bills" icon={FileText} label="VAT bills" value={s && formatNPR(s.vat_gross)} detail={s && plural(s.vat_bill_count, 'bill')} />
+                )}
+                {can('steel.view') && (
+                  <RecordRow to="steel" icon={Ruler} label="Steel (BBS)" value={s && `${formatNumber(s.steel_kg)} kg`} detail={s && `${(Number(s.steel_kg) / 1000).toFixed(3)} t`} />
+                )}
+                {can('boq.view') && <RecordRow to="boq" icon={LayoutList} label="BOQ" value={s && formatNPR(s.boq_total)} />}
+                {can('drawings.view') && <RecordRow to="drawings" icon={Building2} label="Drawings" value={s && plural(s.drawing_count, 'file')} />}
               </ul>
+              {!MODULES.some((m) => can(`${m.key}.view`)) && (
+                <p className="p-4 text-sm text-muted">You can see this project, but no records yet. Ask the firm owner to turn on what you need.</p>
+              )}
             </Panel>
           )}
         </section>
 
-        <section aria-labelledby="money-title">
-          <h2 id="money-title" className="mb-3 text-lg font-semibold">
-            Money so far
-          </h2>
-          <Panel className="p-5">
-            {s ? (
-              <dl className="flex flex-col gap-4">
-                <MoneyLine label="Billed to client" value={billed} />
-                <MoneyLine label="Recorded costs" value={spent} hint="Labour + VAT bills" />
-                <div className="border-t border-line pt-4">
-                  <MoneyLine label={billed - spent >= 0 ? 'Margin so far' : 'Spent beyond billing'} value={Math.abs(billed - spent)} tone={billed - spent >= 0 ? 'good' : 'bad'} />
+        {finance && (
+          <section aria-labelledby="money-title">
+            <h2 id="money-title" className="mb-3 text-lg font-semibold">
+              Money so far
+            </h2>
+            <Panel className="p-5">
+              {s ? (
+                <dl className="flex flex-col gap-4">
+                  <MoneyLine label="Billed to client" value={billed} />
+                  <MoneyLine label="Recorded costs" value={spent} hint="Labour + VAT bills" />
+                  <div className="border-t border-line pt-4">
+                    <MoneyLine label={billed - spent >= 0 ? 'Margin so far' : 'Spent beyond billing'} value={Math.abs(billed - spent)} tone={billed - spent >= 0 ? 'good' : 'bad'} />
+                  </div>
+                </dl>
+              ) : (
+                <div className="flex flex-col gap-4" aria-busy="true">
+                  <Skeleton className="h-11" />
+                  <Skeleton className="h-11" />
+                  <Skeleton className="h-11" />
                 </div>
-              </dl>
-            ) : (
-              <div className="flex flex-col gap-4" aria-busy="true">
-                <Skeleton className="h-11" />
-                <Skeleton className="h-11" />
-                <Skeleton className="h-11" />
-              </div>
-            )}
-          </Panel>
-        </section>
+              )}
+            </Panel>
+          </section>
+        )}
       </div>
 
       <Modal open={dialog === 'progress'} title="Update billing" onClose={() => setDialog(null)}>
@@ -137,7 +154,7 @@ export function SiteHubPage() {
           billed={billed}
           contract={contract}
           onSave={async (value) => {
-            await updateProject(project.id, { billed_amount: value })
+            await updateFinance(project.id, { billed_amount: value })
             reloadProject()
             setDialog(null)
             toast('Billing updated')
@@ -149,8 +166,9 @@ export function SiteHubPage() {
         <ProjectForm
           initial={project}
           submitLabel="Save changes"
-          onSubmit={async (input) => {
+          onSubmit={async (input, contractAmount) => {
             await updateProject(project.id, input)
+            await updateFinance(project.id, { contract_amount: contractAmount })
             reloadProject()
             setDialog(null)
             toast('Changes saved')

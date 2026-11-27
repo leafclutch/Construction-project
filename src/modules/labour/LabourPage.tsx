@@ -12,7 +12,7 @@ import { useProject } from '../../projects/ProjectLayout'
 import { addLabour, deleteLabour, LABOUR_CATEGORIES, listLabour, updateLabour, type LabourEntry, type LabourInput } from './api'
 
 export function LabourPage() {
-  const { project } = useProject()
+  const { project, can } = useProject()
   const [params, setParams] = useSearchParams()
   const filter = { date: params.get('date') ?? '', category: params.get('category') ?? '' }
   const { data, error, reload } = useAsyncData(() => listLabour(project.id, filter), [project.id, filter.date, filter.category])
@@ -44,10 +44,12 @@ export function LabourPage() {
         actions={
           <>
             <PrintButton />
-            <Button onClick={() => setAdding(true)}>
-              <Plus className="size-4" aria-hidden />
-              Add labour
-            </Button>
+            {can('labour.add') && (
+              <Button onClick={() => setAdding(true)}>
+                <Plus className="size-4" aria-hidden />
+                Add labour
+              </Button>
+            )}
           </>
         }
       />
@@ -118,8 +120,9 @@ export function LabourPage() {
               })}
               actions={(r) => (
                 <>
-                  <EditRowButton what={`${r.category} on ${formatDate(r.entry_date)}`} onClick={() => setEditing(r)} />
+                  <EditRowButton module="labour" what={`${r.category} on ${formatDate(r.entry_date)}`} onClick={() => setEditing(r)} />
                   <DeleteRowButton
+                    module="labour"
                     what={`${r.category} on ${formatDate(r.entry_date)}`}
                     onDelete={async () => {
                       await deleteLabour(r.id)

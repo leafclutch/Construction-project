@@ -13,7 +13,7 @@ import { useProject } from '../../projects/ProjectLayout'
 import { addMaterial, deleteMaterial, listMaterials, MATERIALS, UNITS, updateMaterial, type MaterialEntry, type MaterialInput } from './api'
 
 export function MaterialsPage() {
-  const { project } = useProject()
+  const { project, can } = useProject()
   const [params, setParams] = useSearchParams()
   const material = params.get('material') ?? ''
   const { data, error, reload } = useAsyncData(() => listMaterials(project.id, material || undefined), [project.id, material])
@@ -33,10 +33,12 @@ export function MaterialsPage() {
         actions={
           <>
             <PrintButton />
-            <Button onClick={() => setAdding(true)}>
-              <Plus className="size-4" aria-hidden />
-              Add delivery
-            </Button>
+            {can('materials.add') && (
+              <Button onClick={() => setAdding(true)}>
+                <Plus className="size-4" aria-hidden />
+                Add delivery
+              </Button>
+            )}
           </>
         }
       />
@@ -103,8 +105,9 @@ export function MaterialsPage() {
               })}
               actions={(r) => (
                 <>
-                  <EditRowButton what={`${r.material} delivery of ${formatDate(r.entry_date)}`} onClick={() => setEditing(r)} />
+                  <EditRowButton module="materials" what={`${r.material} delivery of ${formatDate(r.entry_date)}`} onClick={() => setEditing(r)} />
                   <DeleteRowButton
+                    module="materials"
                     what={`${r.material} delivery of ${formatDate(r.entry_date)}`}
                     onDelete={async () => {
                       await deleteMaterial(r)

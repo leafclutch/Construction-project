@@ -1,7 +1,6 @@
 import { LayoutList, Plus, Search } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router'
-import { useAuth } from '../../auth/AuthProvider'
 import { Ledger } from '../../components/Ledger'
 import { Modal } from '../../components/Modal'
 import { DeleteRowButton, EditRowButton, LedgerSkeleton, PrintButton, PrintHeader } from '../../components/records'
@@ -23,8 +22,7 @@ const listBoq = (projectId: string) =>
 const squash = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
 
 export function BoqPage() {
-  const { project } = useProject()
-  const { isAdmin } = useAuth()
+  const { project, can } = useProject()
   const { data, error, reload } = useAsyncData(() => listBoq(project.id), [project.id])
   const [params, setParams] = useSearchParams()
   const q = params.get('q') ?? ''
@@ -47,7 +45,7 @@ export function BoqPage() {
         actions={
           <>
             <PrintButton />
-            {isAdmin && (
+            {can('boq.add') && (
               <Button onClick={() => setAdding(true)}>
                 <Plus className="size-4" aria-hidden />
                 Add item
@@ -77,7 +75,7 @@ export function BoqPage() {
             <LedgerSkeleton />
           ) : rows.length === 0 ? (
             <EmptyState icon={<LayoutList className="size-10" />} title={needle ? 'No items match your search' : 'No BOQ items yet'}>
-              {needle ? 'Try a different word.' : isAdmin ? 'Add the work items from your contract BOQ.' : 'The owner has not added BOQ items yet.'}
+              {needle ? 'Try a different word.' : can('boq.add') ? 'Add the work items from your contract BOQ.' : 'The owner has not added BOQ items yet.'}
             </EmptyState>
           ) : (
             <Ledger
@@ -107,8 +105,9 @@ export function BoqPage() {
               })}
               actions={(r) => (
                 <>
-                  <EditRowButton what={`BOQ item ${r.sn}`} onClick={() => setEditing(r)} />
+                  <EditRowButton module="boq" what={`BOQ item ${r.sn}`} onClick={() => setEditing(r)} />
                   <DeleteRowButton
+                    module="boq"
                     what={`BOQ item ${r.sn}`}
                     onDelete={async () => {
                       await unwrap(supabase.from('boq_items').delete().eq('id', r.id))

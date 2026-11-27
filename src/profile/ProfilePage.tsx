@@ -39,32 +39,34 @@ export function ProfilePage() {
           <PasswordForm />
         </Panel>
 
-        <Panel>
-          <h2 className="px-4 pt-4 text-lg font-semibold sm:px-5">Your firms</h2>
-          <ul className="mt-2">
-            {memberships?.map((m) => (
-              <li key={m.orgId} className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line px-4 py-3 sm:px-5">
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold">{m.orgName}</p>
-                  <p className="text-sm text-muted">{ROLE_LABEL[m.role]}</p>
-                </div>
-                {m.orgId === membership?.orgId ? (
-                  <span className="text-sm font-medium text-muted">Current</span>
-                ) : (
-                  <Button
-                    variant="secondary"
-                    onClick={() => {
-                      selectOrg(m.orgId)
-                      navigate('/projects')
-                    }}
-                  >
-                    Switch
-                  </Button>
+        {memberships && memberships.length > 0 && (
+          <Panel>
+            <h2 className="px-4 pt-4 text-lg font-semibold sm:px-5">Your firms</h2>
+            <ul className="mt-2">
+              {memberships?.map((m) => (
+                <li key={m.orgId} className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line px-4 py-3 sm:px-5">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold">{m.orgName}</p>
+                    <p className="text-sm text-muted">{m.active ? ROLE_LABEL[m.role] : `${ROLE_LABEL[m.role]} · access off`}</p>
+                  </div>
+                  {m.orgId === membership?.orgId ? (
+                    <span className="text-sm font-medium text-muted">Current</span>
+                  ) : (
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        selectOrg(m.orgId)
+                        navigate('/projects')
+                      }}
+                    >
+                      Switch
+                    </Button>
                 )}
               </li>
             ))}
           </ul>
         </Panel>
+        )}
       </div>
     </>
   )

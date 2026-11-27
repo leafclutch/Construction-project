@@ -12,7 +12,7 @@ import { useProject } from '../../projects/ProjectLayout'
 import { addBill, deleteBill, listBills, updateBill, type VatBill, type VatBillInput } from './api'
 
 export function BillsPage() {
-  const { project } = useProject()
+  const { project, can } = useProject()
   const { data, error, reload } = useAsyncData(() => listBills(project.id), [project.id])
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState<VatBill | null>(null)
@@ -29,10 +29,12 @@ export function BillsPage() {
         actions={
           <>
             <PrintButton />
-            <Button onClick={() => setAdding(true)}>
-              <Plus className="size-4" aria-hidden />
-              Add bill
-            </Button>
+            {can('bills.add') && (
+              <Button onClick={() => setAdding(true)}>
+                <Plus className="size-4" aria-hidden />
+                Add bill
+              </Button>
+            )}
           </>
         }
       />
@@ -103,8 +105,9 @@ export function BillsPage() {
               })}
               actions={(r) => (
                 <>
-                  <EditRowButton what={`bill ${r.bill_no}`} onClick={() => setEditing(r)} />
+                  <EditRowButton module="bills" what={`bill ${r.bill_no}`} onClick={() => setEditing(r)} />
                   <DeleteRowButton
+                    module="bills"
                     what={`bill ${r.bill_no}`}
                     onDelete={async () => {
                       await deleteBill(r)

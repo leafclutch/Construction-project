@@ -1,14 +1,11 @@
 import { createBrowserRouter, Link } from 'react-router'
 import { LoginPage } from '../auth/LoginPage'
-import { OnboardingPage } from '../auth/OnboardingPage'
-import { ForgotPasswordPage, ResetPasswordPage } from '../auth/PasswordPages'
-import { SignupPage } from '../auth/SignupPage'
 import { EmptyState } from '../components/ui'
 import { ProjectLayout } from '../projects/ProjectLayout'
 import { HomeRedirect, ProjectsPage } from '../projects/ProjectsPage'
 import { SiteHubPage } from '../projects/SiteHubPage'
 import { AppShell } from './AppShell'
-import { GuestOnly, RequireAuth, RequireOrg } from './guards'
+import { GuestOnly, RequireAuth, RequireOrg, RequirePlatformAdmin } from './guards'
 
 function NotFound() {
   return (
@@ -25,17 +22,24 @@ function NotFound() {
 export const router = createBrowserRouter([
   {
     element: <GuestOnly />,
-    children: [
-      { path: '/login', element: <LoginPage /> },
-      { path: '/signup', element: <SignupPage /> },
-      { path: '/forgot-password', element: <ForgotPasswordPage /> },
-    ],
+    children: [{ path: '/login', element: <LoginPage /> }],
   },
-  { path: '/reset-password', element: <ResetPasswordPage /> },
   {
     element: <RequireAuth />,
     children: [
-      { path: '/onboarding', element: <OnboardingPage /> },
+      {
+        element: <RequirePlatformAdmin />,
+        children: [
+          {
+            path: '/platform',
+            lazy: () => import('../platform/PlatformLayout').then((m) => ({ Component: m.PlatformLayout })),
+            children: [
+              { index: true, lazy: () => import('../platform/FirmsPage').then((m) => ({ Component: m.FirmsPage })) },
+              { path: 'profile', lazy: () => import('../profile/ProfilePage').then((m) => ({ Component: m.ProfilePage })) },
+            ],
+          },
+        ],
+      },
       {
         element: <RequireOrg />,
         children: [
@@ -44,7 +48,7 @@ export const router = createBrowserRouter([
             children: [
               { index: true, element: <HomeRedirect /> },
               { path: '/projects', element: <ProjectsPage /> },
-              { path: '/team', lazy: () => import('../team/TeamPage').then((m) => ({ Component: m.TeamPage })) },
+              { path: '/staff', lazy: () => import('../staff/StaffPage').then((m) => ({ Component: m.StaffPage })) },
               { path: '/profile', lazy: () => import('../profile/ProfilePage').then((m) => ({ Component: m.ProfilePage })) },
               {
                 path: '/p/:projectId',
@@ -57,6 +61,7 @@ export const router = createBrowserRouter([
                   { path: 'steel', lazy: () => import('../modules/steel/SteelPage').then((m) => ({ Component: m.SteelPage })) },
                   { path: 'boq', lazy: () => import('../modules/boq/BoqPage').then((m) => ({ Component: m.BoqPage })) },
                   { path: 'drawings', lazy: () => import('../modules/drawings/DrawingsPage').then((m) => ({ Component: m.DrawingsPage })) },
+                  { path: 'team', lazy: () => import('../staff/ProjectTeamPage').then((m) => ({ Component: m.ProjectTeamPage })) },
                 ],
               },
             ],

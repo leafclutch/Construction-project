@@ -19,7 +19,7 @@ const listBbs = (projectId: string) =>
   fetchAll<BbsItem>((from, to) => supabase.from('bbs_items').select('*').eq('project_id', projectId).order('created_at').range(from, to))
 
 export function SteelPage() {
-  const { project } = useProject()
+  const { project, can } = useProject()
   const { data, error, reload } = useAsyncData(() => listBbs(project.id), [project.id])
   const [editing, setEditing] = useState<BbsItem | null>(null)
   const toast = useToast()
@@ -33,15 +33,17 @@ export function SteelPage() {
       <PrintHeader project={project} title="Bar bending schedule" />
       <PageHeader title="Steel (BBS)" description="Bar bending schedule. Weight per metre = D² ÷ 162 (D in mm)." actions={<PrintButton />} />
 
-      <Panel className="no-print mb-6 p-4 sm:p-5">
-        <SteelForm
-          onSave={async (input) => {
-            await unwrap(supabase.from('bbs_items').insert({ ...input, org_id: project.org_id, project_id: project.id }))
-            reload()
-            toast('Steel row added')
-          }}
-        />
-      </Panel>
+      {can('steel.add') && (
+        <Panel className="no-print mb-6 p-4 sm:p-5">
+          <SteelForm
+            onSave={async (input) => {
+              await unwrap(supabase.from('bbs_items').insert({ ...input, org_id: project.org_id, project_id: project.id }))
+              reload()
+              toast('Steel row added')
+            }}
+          />
+        </Panel>
+      )}
 
       <section aria-label="Steel total" className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-lg bg-ink px-5 py-4 text-ink-text print:border print:border-black print:bg-transparent print:text-black">
         <div>
@@ -98,8 +100,9 @@ export function SteelPage() {
               })}
               actions={(r) => (
                 <>
-                  <EditRowButton what={r.member} onClick={() => setEditing(r)} />
+                  <EditRowButton module="steel" what={r.member} onClick={() => setEditing(r)} />
                   <DeleteRowButton
+                    module="steel"
                     what={r.member}
                     onDelete={async () => {
                       await unwrap(supabase.from('bbs_items').delete().eq('id', r.id))

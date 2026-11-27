@@ -4,7 +4,15 @@ import type { Project, ProjectInput } from './api'
 
 export const statusLabel: Record<Project['status'], string> = { running: 'Running', on_hold: 'On hold', completed: 'Completed' }
 
-export function ProjectForm({ initial, submitLabel, onSubmit }: { initial?: Project; submitLabel: string; onSubmit: (input: ProjectInput) => Promise<void> }) {
+export function ProjectForm({
+  initial,
+  submitLabel,
+  onSubmit,
+}: {
+  initial?: Project
+  submitLabel: string
+  onSubmit: (input: ProjectInput, contractAmount: number) => Promise<void>
+}) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>(null)
 
@@ -15,15 +23,17 @@ export function ProjectForm({ initial, submitLabel, onSubmit }: { initial?: Proj
     setBusy(true)
     setError(null)
     try {
-      await onSubmit({
-        name: text('name')!,
-        code: text('code'),
-        location: text('location'),
-        client_name: text('client_name'),
-        contract_amount: Number(f.get('contract_amount') || 0),
-        status: f.get('status') as Project['status'],
-        start_date: text('start_date'),
-      })
+      await onSubmit(
+        {
+          name: text('name')!,
+          code: text('code'),
+          location: text('location'),
+          client_name: text('client_name'),
+          status: f.get('status') as Project['status'],
+          start_date: text('start_date'),
+        },
+        Number(f.get('contract_amount') || 0),
+      )
     } catch (err) {
       setError(err)
       setBusy(false)
@@ -46,7 +56,7 @@ export function ProjectForm({ initial, submitLabel, onSubmit }: { initial?: Proj
       </Field>
       <Field label="Contract amount (Rs.)">
         {(id) => (
-          <Input id={id} name="contract_amount" type="number" inputMode="decimal" min={0} step="0.01" defaultValue={initial?.contract_amount ?? ''} required />
+          <Input id={id} name="contract_amount" type="number" inputMode="decimal" min={0} step="0.01" defaultValue={initial?.finance?.contract_amount ?? ''} required />
         )}
       </Field>
       <Field label="Status">

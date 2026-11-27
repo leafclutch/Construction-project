@@ -8,15 +8,17 @@ type Props = {
   confirmLabel: string
   onConfirm: () => Promise<void>
   onClose: () => void
+  /** danger (default) for destructive actions */
+  tone?: 'danger' | 'primary'
 }
 
-/** Native <dialog> confirm for destructive actions. Stays open on error. */
+/** Native <dialog> confirm. Stays open on error. */
 export function ConfirmDialog(props: Props) {
   // Mounted only while open: long ledgers render one per row.
   return props.open ? <OpenConfirmDialog {...props} /> : null
 }
 
-function OpenConfirmDialog({ title, children, confirmLabel, onConfirm, onClose }: Props) {
+function OpenConfirmDialog({ title, children, confirmLabel, onConfirm, onClose, tone = 'danger' }: Props) {
   const ref = useRef<HTMLDialogElement>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>(null)
@@ -52,7 +54,7 @@ function OpenConfirmDialog({ title, children, confirmLabel, onConfirm, onClose }
           <Button variant="secondary" onClick={onClose} disabled={busy}>
             Cancel
           </Button>
-          <Button variant="danger" onClick={confirm} busy={busy}>
+          <Button variant={tone} onClick={confirm} busy={busy}>
             {confirmLabel}
           </Button>
         </div>

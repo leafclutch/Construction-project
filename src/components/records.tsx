@@ -3,7 +3,9 @@ import { useState, type ReactNode } from 'react'
 import { useAuth } from '../auth/AuthProvider'
 import { openFile, type Bucket } from '../lib/files'
 import { formatDate, todayISO } from '../lib/format'
+import type { ModuleKey } from '../lib/permissions'
 import type { Project } from '../projects/api'
+import { useProject } from '../projects/ProjectLayout'
 import { ConfirmDialog } from './ConfirmDialog'
 import { useToast } from './toast'
 import { Button, cx } from './ui'
@@ -46,10 +48,10 @@ export function StatStrip({ items }: { items: { label: string; value: ReactNode;
   )
 }
 
-/** Admin-only edit. Renders nothing for site staff. */
-export function EditRowButton({ what, onClick }: { what: string; onClick: () => void }) {
-  const { isAdmin } = useAuth()
-  if (!isAdmin) return null
+/** Shown only to people allowed to edit this module on this project. */
+export function EditRowButton({ module, what, onClick }: { module: ModuleKey; what: string; onClick: () => void }) {
+  const { can } = useProject()
+  if (!can(`${module}.edit`)) return null
   return (
     <button
       type="button"
@@ -62,12 +64,12 @@ export function EditRowButton({ what, onClick }: { what: string; onClick: () => 
   )
 }
 
-/** Admin-only delete with confirmation. Renders nothing for site staff. */
-export function DeleteRowButton({ what, onDelete }: { what: string; onDelete: () => Promise<void> }) {
-  const { isAdmin } = useAuth()
+/** Delete with confirmation, shown only to people allowed to delete in this module on this project. */
+export function DeleteRowButton({ module, what, onDelete }: { module: ModuleKey; what: string; onDelete: () => Promise<void> }) {
+  const { can } = useProject()
   const [open, setOpen] = useState(false)
   const toast = useToast()
-  if (!isAdmin) return null
+  if (!can(`${module}.delete`)) return null
   return (
     <>
       <button

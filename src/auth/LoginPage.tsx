@@ -1,9 +1,9 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router'
+import { useLocation, useNavigate } from 'react-router'
 import { Button, Field, FormError, Input } from '../components/ui'
+import { APP_NAME } from '../lib/brand'
 import { supabase } from '../lib/supabase'
 import { AuthLayout } from './AuthLayout'
-import { APP_NAME } from '../lib/brand'
 
 export function LoginPage() {
   const navigate = useNavigate()
@@ -29,14 +29,7 @@ export function LoginPage() {
     <AuthLayout
       title="Log in"
       subtitle="Your sites, bills and wages in one place."
-      footer={
-        <>
-          New to {APP_NAME}?{' '}
-          <Link to="/signup" className="font-semibold text-text underline underline-offset-4">
-            Create an account
-          </Link>
-        </>
-      }
+      footer={`Forgot your password? Ask your firm owner to reset it. Owners can ask ${APP_NAME} support.`}
     >
       <form onSubmit={submit} className="flex flex-col gap-4">
         <Field label="Email">{(id) => <Input id={id} name="email" type="email" autoComplete="email" required />}</Field>
@@ -47,9 +40,6 @@ export function LoginPage() {
         <Button type="submit" busy={busy} className="w-full">
           Log in
         </Button>
-        <Link to="/forgot-password" className="self-start text-sm text-muted underline underline-offset-4 hover:text-text">
-          Forgot password?
-        </Link>
       </form>
     </AuthLayout>
   )
