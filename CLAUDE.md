@@ -29,6 +29,14 @@ Plan, checklist, test results and blockers: `docs/PLAN.md`. Keep it in sync with
 - Edge Function: `pnpm exec supabase functions deploy accounts --remote=<ref> --no-verify-jwt --use-api` (needs the user's OK for each target). Tests: `tests/accounts.integration.test.ts`.
 - DB scripts: `pnpm db:push [--dry-run]`, `pnpm gen:types` (both read `.env.local`).
 
+## PWA / offline rules
+- `vite-plugin-pwa` (injectManifest) with our own `src/sw.ts`: it precaches the app and shows push notifications. It never caches Supabase responses.
+- Data offline: lists pass a `cacheKey` to `useAsyncData` (IndexedDB copy per user, cleared on log out). New lists should too.
+- Adding labour/materials/bills/steel goes through `saveRecord` in `src/lib/outbox.ts`: client UUID, so a retry can never make a second row (23505 = already saved). New add-forms that should work offline use it; edits and deletes stay online-only.
+- Tables written offline need `id` in their insert grant (migration 5).
+- Push: trigger `private.notify_record()` → `pg_net` → Edge Function `push` (shared secret in Vault + function secret). Only site_staff inserts notify owners/admins.
+- Receipt/bill photos go through `FilePicker photo` (camera + shrink to 1600 px); drawings are never shrunk.
+
 ## Product rules
 - The product name lives in `src/lib/brand.ts` (`APP_NAME`) and `<title>` in `index.html`. Never hard-code it elsewhere.
 - Record edits (owner/admin) reuse the add form with `initial`; saves go through `updateOne(...select('id'))` so an RLS-blocked update errors instead of silently doing nothing.
