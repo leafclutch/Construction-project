@@ -83,6 +83,8 @@ Thekka is run by Leafclutch: super admins create firms and owner logins; owners 
 - [x] Browser (owner): Staff page, Team tab add-from-staff with Store keeper preset, toggle rules (add turns on view; view off clears the row), new person with taken email (clear message) and new email (login card, copy works), turn access off/on, new project with contract amount → billing → delete (money row removed with it). Fixed: double scrollbar in tall dialogs (shared Modal); sidebar now falls back to the only project
 - [x] Browser (new staff, Site supervisor): first login forced "Set your password" (flag cleared in DB); sees only the assigned project, no money on the board, no Team/Staff (pages say "no access" by URL too), Labour add + edit but no delete, BOQ view only; edit saved through RLS. Phone 375: no sideways scroll, bottom tabs Hub/Labour/Materials/Bills/More
 - [x] Browser (super admin): lands on Firms; create firm + owner login (card + copy); open a firm read-only (banner; no add/edit/delete on Site Hub, Labour, Team, Staff); pause (badge, toast) and turn back on; reset owner password. Fixed: the password card after a reset said "Firm created"/"Login created" (now "New temporary password"); admin header now stays on one row at 320 px and the firm search placeholder is no longer cut off
+- [x] Top bar on every page: breadcrumb (Home › Project › Section; Home = projects list) and an avatar menu (name, role · firm, My profile, Dark/Light mode, Log out). Removed those three from the sidebar; sidebar sections share one 10px gap and desktop rows are 32px (phones keep 44px), so the menu fits a ~600px tall window with no scroll; thin sidebar scrollbar. Same avatar menu in the super admin header. Profile page: identity card + name/password side by side on desktop; firm list only with 2+ firms. Browser-tested as owner (desktop, 320, 375, dark); super admin header not yet browser-tested
+- [ ] Profile photos (upload): not built; needs a storage bucket + column. Avatar shows initials
 
 ## Open decisions (user / CEO)
 - Money additions inside existing pages (material amount + paid/due, labour advance, client payments on Site Hub). Not built until approved.
@@ -92,6 +94,7 @@ Thekka is run by Leafclutch: super admins create firms and owner logins; owners 
 - Supabase dashboard (dev): Authentication → Sign In / Providers → turn off "Allow new users to sign up". Safe either way (a self-signed-up account belongs to no firm and sees nothing), but it should be off.
 
 ## Test log
+- 2026-11-27 (run 11): top bar + breadcrumb + avatar menu, profile page redesign. `pnpm test` 11/11, `tsc -b` clean, build OK, lint only old hints. Browser as owner: desktop, 320/375, dark, keyboard in the menu, no console errors.
 - 2026-11-27 (run 10): managed SaaS model (Phase 7). Migration 4 + accounts function on dev; `pnpm test:db` 30/30, `pnpm test` 11/11, `tsc -b` clean, lint only old fast-refresh hints.
 - 2026-11-26 (run 9): DB review (indexes, RLS, function security); migration 3 applied to dev (user OK).
 - 2026-11-26 (run 8): profile page, record editing on 5 pages, project edit/billing/delete tested in the browser; Modal bug fixed; `pnpm test` 7/7, `pnpm test:db` 12/12, `tsc -b` clean, build OK.
