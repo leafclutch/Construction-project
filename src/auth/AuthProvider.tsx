@@ -13,7 +13,7 @@ export type Membership = {
   readOnly?: boolean
 }
 
-type Loaded = { userId: string; list: Membership[]; mustChangePassword: boolean; platformAdmin: boolean }
+type Loaded = { userId: string; list: Membership[]; fullName: string | null; mustChangePassword: boolean; platformAdmin: boolean }
 
 type AuthState = {
   session: Session | null
@@ -26,6 +26,8 @@ type AuthState = {
   /** Leafclutch super admin */
   platformAdmin: boolean
   mustChangePassword: boolean
+  /** From profiles; null until set */
+  fullName: string | null
   selectOrg: (orgId: string) => void
   /** Super admin only: open a firm read-only, or null to leave it */
   viewOrg: (org: { id: string; name: string } | null) => void
@@ -64,7 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!userId) return
     const [memberships, profile, platform] = await Promise.all([
       supabase.from('memberships').select('role, org_id, active, organizations(name, status)').eq('user_id', userId).order('created_at'),
-      supabase.from('profiles').select('must_change_password').eq('id', userId).maybeSingle(),
+      supabase.from('profiles').select('must_change_password, full_name').eq('id', userId).maybeSingle(),
       supabase.from('platform_admins').select('user_id').eq('user_id', userId).maybeSingle(),
     ])
     const error = memberships.error ?? profile.error ?? platform.error
@@ -78,6 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         active: m.active,
         orgStatus: m.organizations?.status ?? 'active',
       })),
+      fullName: profile.data?.full_name ?? null,
       mustChangePassword: profile.data?.must_change_password ?? false,
       platformAdmin: Boolean(platform.data),
     })
@@ -128,6 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isAdmin: Boolean(membership && !membership.readOnly && membership.active && membership.orgStatus === 'active' && membership.role !== 'site_staff'),
     platformAdmin,
     mustChangePassword: mine?.mustChangePassword ?? false,
+    fullName: mine?.fullName ?? null,
     selectOrg,
     viewOrg,
     refresh,

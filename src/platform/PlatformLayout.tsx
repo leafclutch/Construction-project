@@ -1,17 +1,15 @@
-import { Building, LogOut, UserRound } from 'lucide-react'
+import { Building } from 'lucide-react'
 import { NavLink, Outlet } from 'react-router'
-import { ThemeToggle } from '../app/AppShell'
-import { useAuth } from '../auth/AuthProvider'
+import { AccountMenu } from '../components/AccountMenu'
 import { BrandMark } from '../components/BrandMark'
 import { cx } from '../components/ui'
 import { APP_NAME } from '../lib/brand'
 
 /** Shell for Leafclutch super admins: firms and their own profile. */
 export function PlatformLayout() {
-  const { signOut } = useAuth()
   const item = ({ isActive }: { isActive: boolean }) =>
     cx(
-      'flex min-h-11 items-center gap-2 rounded-md px-3 text-sm font-medium',
+      'flex min-h-11 items-center gap-2 rounded-md px-3 text-sm font-medium lg:min-h-8',
       isActive ? 'bg-white/10 text-ink-text' : 'text-ink-muted hover:bg-white/5 hover:text-ink-text',
     )
   return (
@@ -29,17 +27,9 @@ export function PlatformLayout() {
           </span>
           <NavLink to="/platform" end className={item}>
             <Building className="size-4" aria-hidden />
-            <span className="sr-only sm:not-sr-only">Firms</span>
+            Firms
           </NavLink>
-          <NavLink to="/platform/profile" className={item}>
-            <UserRound className="size-4" aria-hidden />
-            <span className="sr-only sm:not-sr-only">My profile</span>
-          </NavLink>
-          <ThemeToggle compact />
-          <button type="button" onClick={() => void signOut()} className={item({ isActive: false })} aria-label="Log out">
-            <LogOut className="size-4" aria-hidden />
-            <span className="sr-only sm:not-sr-only">Log out</span>
-          </button>
+          <AccountMenu profilePath="/platform/profile" />
         </nav>
       </header>
       <main id="main" tabIndex={-1} className="mx-auto max-w-6xl px-4 pb-16 pt-6 outline-none sm:px-6 lg:pt-8">

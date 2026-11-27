@@ -1,34 +1,32 @@
 import {
   Building2,
   Check,
+  ChevronRight,
   ChevronsUpDown,
   Eye,
   FileText,
   Gauge,
   HardHat,
+  House,
   LayoutList,
-  LogOut,
   Menu,
-  Moon,
   Ruler,
   Search,
-  Sun,
   Truck,
-  UserRound,
   Users,
   UsersRound,
   type LucideIcon,
 } from 'lucide-react'
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router'
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import { useAuth } from '../auth/AuthProvider'
+import { AccountMenu } from '../components/AccountMenu'
 import { BrandMark } from '../components/BrandMark'
-import { cx } from '../components/ui'
-import { APP_NAME, ROLE_LABEL } from '../lib/brand'
+import { cx, Skeleton } from '../components/ui'
+import { APP_NAME } from '../lib/brand'
 import type { ModuleKey } from '../lib/permissions'
 import type { Project } from '../projects/api'
 import { ProjectsProvider, useCanOn, useProjects } from '../projects/ProjectsProvider'
-import { currentTheme, setTheme } from './theme'
 
 type NavItem = { to: string; label: string; short?: string; icon: LucideIcon; module?: ModuleKey }
 
@@ -78,6 +76,7 @@ function Shell() {
   const drawerOpen = drawerPath === location.pathname
   const setDrawerOpen = (open: boolean) => setDrawerPath(open ? location.pathname : null)
   const { current } = useProjects()
+  const { membership } = useAuth()
 
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[16rem_1fr] print:block">
@@ -93,28 +92,31 @@ function Shell() {
         <Sidebar />
       </aside>
 
-      {/* Mobile top bar */}
-      <header className="no-print sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-line bg-surface/95 px-3 backdrop-blur lg:hidden">
-        <button
-          type="button"
-          onClick={() => setDrawerOpen(true)}
-          aria-label="Open menu"
-          className="grid size-11 place-items-center rounded-md hover:bg-surface-2"
-        >
-          <Menu className="size-5" aria-hidden />
-        </button>
-        <BrandMark className="size-7 shrink-0" />
-        <span className="truncate font-semibold">{current?.name ?? APP_NAME}</span>
-      </header>
+      <div className="min-w-0">
+        <header className="no-print sticky top-0 z-30 border-b border-line bg-surface/95 px-2 backdrop-blur sm:px-6 lg:px-10">
+          <div className="mx-auto flex h-14 max-w-6xl items-center gap-1 sm:gap-2">
+            <button
+              type="button"
+              onClick={() => setDrawerOpen(true)}
+              aria-label="Open menu"
+              className="grid size-11 shrink-0 place-items-center rounded-md hover:bg-surface-2 sm:-ml-3 lg:hidden"
+            >
+              <Menu className="size-5" aria-hidden />
+            </button>
+            <Breadcrumbs />
+            <AccountMenu profilePath={membership?.readOnly ? '/platform/profile' : '/profile'} />
+          </div>
+        </header>
+
+        <main id="main" tabIndex={-1} className="min-w-0 outline-none px-4 pb-28 pt-5 sm:px-6 lg:px-10 lg:pb-12 lg:pt-6 print:p-0">
+          <div className="mx-auto max-w-6xl">
+            <SupportBanner />
+            <Outlet />
+          </div>
+        </main>
+      </div>
 
       {drawerOpen && <Drawer onClose={() => setDrawerOpen(false)} />}
-
-      <main id="main" tabIndex={-1} className="min-w-0 outline-none px-4 pb-28 pt-5 sm:px-6 lg:px-10 lg:pb-12 lg:pt-8 print:p-0">
-        <div className="mx-auto max-w-6xl">
-          <SupportBanner />
-          <Outlet />
-        </div>
-      </main>
 
       {current && <BottomTabs project={current} onMore={() => setDrawerOpen(true)} />}
     </div>
@@ -167,19 +169,19 @@ function Drawer({ onClose }: { onClose: () => void }) {
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   cx(
-    'relative flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-medium transition-colors',
+    'relative flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-medium lg:min-h-8 transition-colors',
     isActive ? 'bg-white/10 text-ink-text before:absolute before:inset-y-2 before:left-0 before:w-1 before:rounded-full before:bg-hivis' : 'text-ink-muted hover:bg-white/5 hover:text-ink-text',
   )
 
 /** Same on every page: the current (or last opened) project's menu stays put. */
 function Sidebar() {
-  const { membership, isAdmin, signOut } = useAuth()
+  const { membership, isAdmin } = useAuth()
   const { current } = useProjects()
   const groups = useProjectNav(current)
 
   return (
-    <nav aria-label="Main" className="flex h-full flex-col overflow-y-auto bg-ink px-3 py-4 text-ink-text">
-      <div className="flex items-center gap-2.5 px-2 pb-4">
+    <nav aria-label="Main" className="flex h-full flex-col gap-2.5 overflow-y-auto bg-ink px-3 py-3 text-ink-text [scrollbar-color:rgb(255_255_255/0.18)_transparent] [scrollbar-width:thin]">
+      <div className="flex items-center gap-2.5 px-2">
         <BrandMark className="size-9 shrink-0" />
         <div className="min-w-0">
           <p className="truncate font-bold leading-tight" style={{ fontVariationSettings: "'wdth' 85" }}>
@@ -192,7 +194,7 @@ function Sidebar() {
       <ProjectSwitcher />
 
       {current && (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-2.5">
           {groups.map(({ group, items }) => (
             <div key={group || 'top'}>
               {group && <p className="px-3 pb-1 text-xs font-medium text-ink-muted">{group}</p>}
@@ -211,7 +213,7 @@ function Sidebar() {
         </div>
       )}
 
-      <div className="mt-6 border-t border-white/10 pt-4">
+      <div className="border-t border-white/10 pt-2.5">
         <p className="px-3 pb-1 text-xs font-medium text-ink-muted">Firm</p>
         <ul className="flex flex-col gap-0.5">
           <li>
@@ -231,49 +233,64 @@ function Sidebar() {
         </ul>
       </div>
 
-      <div className="mt-auto flex flex-col gap-1 border-t border-white/10 pt-4">
-        {!membership?.readOnly && (
-          <NavLink to="/profile" className={linkClass}>
-            <UserRound className="size-[1.125rem] shrink-0" aria-hidden />
-            <span className="min-w-0">
-              <span className="block">My profile</span>
-              {membership && <span className="block text-xs font-normal text-ink-muted">{ROLE_LABEL[membership.role]}</span>}
-            </span>
-          </NavLink>
-        )}
-        <ThemeToggle />
-        <button
-          type="button"
-          onClick={() => void signOut()}
-          className="flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-medium text-ink-muted hover:bg-white/5 hover:text-ink-text"
-        >
-          <LogOut className="size-[1.125rem]" aria-hidden />
-          Log out
-        </button>
-      </div>
     </nav>
   )
 }
 
-/** Light/dark switch for dark (ink) surfaces. `compact` hides the label on phones. */
-// eslint-disable-next-line react-refresh/only-export-components
-export function ThemeToggle({ compact }: { compact?: boolean }) {
-  const [theme, setThemeState] = useState(currentTheme)
-  const label = theme === 'dark' ? 'Light mode' : 'Dark mode'
+const SECTION_LABEL: Record<string, string> = {
+  ...Object.fromEntries(projectNav.flatMap((g) => g.items).map((i) => [i.to, i.label])),
+  team: 'Team',
+}
+
+/** Home › Project › Section, from the URL. Home is the projects list. */
+function Breadcrumbs() {
+  const { pathname } = useLocation()
+  const { projects } = useProjects()
+  const [, first, id, section] = pathname.split('/')
+  const trail: { label: ReactNode; to?: string }[] = []
+  if (first === 'p') {
+    const name = projects?.find((p) => p.id === id)?.name
+    trail.push({ label: name ?? (projects ? 'Project' : <Skeleton className="h-4 w-28" />), to: section ? `/p/${id}` : undefined })
+    if (section) trail.push({ label: SECTION_LABEL[section] ?? section })
+  } else if (first === 'staff') trail.push({ label: 'Staff' })
+  else if (first === 'profile') trail.push({ label: 'My profile' })
+
+  const home = (
+    <>
+      <House className="size-4 shrink-0" aria-hidden />
+      <span className={cx(trail.length > 0 && 'sr-only sm:not-sr-only')}>Home</span>
+    </>
+  )
   return (
-    <button
-      type="button"
-      aria-label={compact ? label : undefined}
-      onClick={() => {
-        const next = theme === 'dark' ? 'light' : 'dark'
-        setTheme(next)
-        setThemeState(next)
-      }}
-      className="flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-medium text-ink-muted hover:bg-white/5 hover:text-ink-text"
-    >
-      {theme === 'dark' ? <Sun className="size-[1.125rem]" aria-hidden /> : <Moon className="size-[1.125rem]" aria-hidden />}
-      <span className={cx(compact && 'sr-only sm:not-sr-only')}>{label}</span>
-    </button>
+    <nav aria-label="Breadcrumb" className="min-w-0 flex-1">
+      <ol className="flex min-w-0 items-center gap-1.5 text-sm">
+        <li className="shrink-0">
+          {trail.length ? (
+            <Link to="/projects" className="flex min-h-11 items-center gap-1.5 rounded-md px-1 text-muted hover:text-text">
+              {home}
+            </Link>
+          ) : (
+            <span aria-current="page" className="flex items-center gap-1.5 px-1 font-semibold">
+              {home}
+            </span>
+          )}
+        </li>
+        {trail.map((c, i) => (
+          <li key={i} className={cx('flex items-center gap-1.5', i === trail.length - 1 && trail.length > 1 ? 'shrink-0' : 'min-w-0')}>
+            <ChevronRight className="size-3.5 shrink-0 text-muted" aria-hidden />
+            {c.to ? (
+              <Link to={c.to} className="flex min-h-11 min-w-0 items-center text-muted hover:text-text">
+                <span className="truncate">{c.label}</span>
+              </Link>
+            ) : (
+              <span aria-current="page" className="truncate font-semibold">
+                {c.label}
+              </span>
+            )}
+          </li>
+        ))}
+      </ol>
+    </nav>
   )
 }
 
@@ -322,7 +339,7 @@ function ProjectSwitcher() {
   const shown = projects?.filter((p) => !needle || `${p.name} ${p.location ?? ''} ${p.code ?? ''}`.toLowerCase().includes(needle)) ?? []
 
   return (
-    <div className="mb-4">
+    <div>
       <button
         ref={button}
         type="button"
